@@ -1,6 +1,13 @@
 import { AuthProvider } from "@/components/auth/auth-provider";
-import { UserMenu } from "@/components/auth/user-menu";
-import Link from "next/link";
+import { AdminPendingRealtimeProvider } from "@/components/admin-pending-realtime-provider";
+import { AppSidebar } from "@/components/app-sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
+import { DynamicBreadcrumb } from "@/components/dynamic-breadcrumb";
 
 export default function ProtectedLayout({
   children,
@@ -9,22 +16,23 @@ export default function ProtectedLayout({
 }) {
   return (
     <AuthProvider>
-      <div className="flex min-h-full flex-1 flex-col bg-zinc-50 dark:bg-zinc-950">
-        <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <Link
-              href="/dashboard"
-              className="text-lg font-bold text-zinc-900 dark:text-zinc-50"
-            >
-              Departamentos FJ
-            </Link>
-            <UserMenu />
-          </div>
-        </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-          {children}
-        </main>
-      </div>
+      <AdminPendingRealtimeProvider>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            <header className="flex h-16 shrink-0 items-center gap-2">
+              <div className="flex items-center gap-2 px-4">
+                <SidebarTrigger className="-ml-1" />
+                <Separator orientation="vertical" className="mr-2 h-4" />
+                <DynamicBreadcrumb />
+              </div>
+            </header>
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+              {children}
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
+      </AdminPendingRealtimeProvider>
     </AuthProvider>
   );
 }

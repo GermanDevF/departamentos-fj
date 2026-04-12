@@ -14,6 +14,7 @@ import type { AuthUser } from "@/lib/auth/types";
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
+  isAdmin: boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -21,6 +22,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
+  isAdmin: false,
   refresh: async () => {},
   signOut: async () => {},
 });
@@ -49,8 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
+  const isAdmin = user?.role === "admin";
+
   return (
-    <AuthContext value={{ user, loading, refresh, signOut: handleSignOut }}>
+    <AuthContext value={{ user, loading, isAdmin, refresh, signOut: handleSignOut }}>
       {children}
     </AuthContext>
   );

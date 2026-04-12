@@ -1,3 +1,11 @@
+export type UserRole = "admin" | "staff";
+
+export type AuthErrorCode =
+  | "invalid_credentials"
+  | "pending_approval"
+  | "no_profile"
+  | "email_not_verified";
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -5,11 +13,14 @@ export interface AuthUser {
   avatarUrl: string | null;
   emailVerified: boolean;
   createdAt: string;
+  role: UserRole;
+  isActive: boolean;
 }
 
 export interface AuthResult {
   success: boolean;
   error?: string;
+  code?: AuthErrorCode;
 }
 
 export interface SignUpResult extends AuthResult {
