@@ -13,10 +13,24 @@
  */
 
 import { createInterface } from "node:readline/promises";
-import { stdin, stdout, exit, env } from "node:process";
+import { stdin, stdout, exit, env, argv } from "node:process";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+// ---------------------------------------------------------------------------
+// Parsear argumentos CLI: --name "X" --email "X" --password "X"
+// ---------------------------------------------------------------------------
+function parseArgs() {
+  const args = argv.slice(2);
+  const result = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--name" && args[i + 1]) result.name = args[++i];
+    else if (args[i] === "--email" && args[i + 1]) result.email = args[++i];
+    else if (args[i] === "--password" && args[i + 1]) result.password = args[++i];
+  }
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // Cargar variables de entorno desde .env.local si existe
@@ -116,6 +130,31 @@ function createProfileViaCli(userId) {
   }
 }
 
+function verifyEmailViaCli(userId) {
+  try {
+    execSync(
+      `npx @insforge/cli db query "UPDATE auth.users SET email_verified = true WHERE id = '${userId}'"`,
+      { stdio: "pipe" },
+    );
+    console.log("  ✓ Email marcado como verificado vía CLI");
+  } catch (e) {
+    console.error("  ⚠ No se pudo verificar el email:", e.stderr?.toString().trim());
+    console.log(`    Manual: npx @insforge/cli db query "UPDATE auth.users SET email_verified = true WHERE id = '${userId}'"`);
+  }
+}
+
+async function getVerifyMethod(baseUrl, anonKey) {
+  try {
+    const resp = await fetch(`${baseUrl}/api/auth/public-config`, {
+      headers: { Authorization: `Bearer ${anonKey}` },
+    });
+    const json = await resp.json();
+    return json.verifyEmailMethod ?? "code";
+  } catch {
+    return "code";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -135,12 +174,19 @@ async function main() {
   console.log("║   Crear usuario administrador        ║");
   console.log("╚══════════════════════════════════════╝\n");
 
+  const cliArgs = parseArgs();
   const rl = createInterface({ input: stdin, output: stdout });
 
   try {
-    const name = await askValid(rl, "Nombre completo: ", validateName);
-    const email = await askValid(rl, "Email: ", validateEmail);
-    const password = await askValid(rl, "Contraseña (mín. 8 caracteres): ", validatePassword);
+    const name = cliArgs.name
+      ? (validateName(cliArgs.name) ? (console.error(`  ✗ ${validateName(cliArgs.name)}`), exit(1)) : cliArgs.name.trim())
+      : await askValid(rl, "Nombre completo: ", validateName);
+    const email = cliArgs.email
+      ? (validateEmail(cliArgs.email) ? (console.error(`  ✗ ${validateEmail(cliArgs.email)}`), exit(1)) : cliArgs.email.trim())
+      : await askValid(rl, "Email: ", validateEmail);
+    const password = cliArgs.password
+      ? (validatePassword(cliArgs.password) ? (console.error(`  ✗ ${validatePassword(cliArgs.password)}`), exit(1)) : cliArgs.password)
+      : await askValid(rl, "Contraseña (mín. 8 caracteres): ", validatePassword);
 
     console.log(`\nCreando usuario "${name}" (${email}) como admin…\n`);
 
@@ -148,10 +194,12 @@ async function main() {
     const { createClient } = await import("@insforge/sdk");
     const insforge = createClient({ baseUrl, anonKey, isServerMode: true });
 
+    const appUrl = env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const { data: signUpData, error: signUpError } = await insforge.auth.signUp({
       email,
       password,
       name,
+      redirectTo: `${appUrl}/verify-email`,
     });
 
     let userId = signUpData?.user?.id;
@@ -185,38 +233,44 @@ async function main() {
 
     console.log(`  ✓ Usuario registrado (ID: ${userId})`);
 
-    // 2. Verificar email con código OTP y obtener sesión autenticada
-    let accessToken = signUpData?.accessToken;
-
+    // 2. Verificar email
     if (isAlreadyExists) {
       console.log("  ✓ Usuario ya verificado (cuenta existente)");
     } else if (needsVerification) {
-      console.log("\n  ✉ Se envió un código de verificación a tu email.");
+      const verifyMethod = await getVerifyMethod(baseUrl, anonKey);
 
-      let verified = false;
-      while (!verified) {
-        const otp = await askValid(rl, "  Código de verificación (6 dígitos): ", (v) => {
-          if (!v || !v.trim()) return "El código es requerido.";
-          if (!/^\d{6}$/.test(v.trim())) return "Debe ser un código de 6 dígitos.";
-          return null;
-        });
+      if (verifyMethod === "link") {
+        // Verificación por link: forzar vía CLI sin necesitar interacción
+        console.log("  ↳ Verificación por link detectada, verificando email vía CLI…");
+        verifyEmailViaCli(userId);
+      } else {
+        // Verificación por código OTP
+        console.log("\n  ✉ Se envió un código de verificación a tu email.");
 
-        const { data: verifyData, error: verifyError } = await insforge.auth.verifyEmail({ email, otp });
+        let verified = false;
+        while (!verified) {
+          const otp = await askValid(rl, "  Código de verificación (6 dígitos): ", (v) => {
+            if (!v || !v.trim()) return "El código es requerido.";
+            if (!/^\d{6}$/.test(v.trim())) return "Debe ser un código de 6 dígitos.";
+            return null;
+          });
 
-        if (verifyError) {
-          const msg = verifyError.message ?? "";
-          console.error(`  ✗ ${msg || "Código inválido o expirado."}`);
+          const { data: verifyData, error: verifyError } = await insforge.auth.verifyEmail({ email, otp });
 
-          const retry = await rl.question("  ¿Reintentar? (s/n): ");
-          if (retry.trim().toLowerCase() !== "s") {
-            console.log("\n  Puedes verificar manualmente con:");
-            console.log(`    npx @insforge/cli db query "UPDATE auth.users SET email_confirmed_at = now() WHERE id = '${userId}'"`);
-            exit(1);
+          if (verifyError) {
+            const msg = verifyError.message ?? "";
+            console.error(`  ✗ ${msg || "Código inválido o expirado."}`);
+
+            const retry = await rl.question("  ¿Reintentar? (s/n): ");
+            if (retry.trim().toLowerCase() !== "s") {
+              console.log("\n  Puedes verificar manualmente con:");
+              console.log(`    npx @insforge/cli db query "UPDATE auth.users SET email_verified = true WHERE id = '${userId}'"`);
+              exit(1);
+            }
+          } else {
+            verified = true;
+            console.log("  ✓ Email verificado");
           }
-        } else {
-          verified = true;
-          accessToken = verifyData?.accessToken ?? accessToken;
-          console.log("  ✓ Email verificado");
         }
       }
     } else {

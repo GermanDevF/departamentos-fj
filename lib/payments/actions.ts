@@ -242,12 +242,31 @@ export async function getMonthlyPendingAmount(): Promise<number> {
   }
 }
 
+function daysInCalendarMonth(year: number, month1to12: number): number {
+  return new Date(year, month1to12, 0).getDate();
+}
+
+/** Fecha límite de pago del mes (YYYY-MM-DD), ajustada si `dia_pago` excede días del mes. */
+function paymentDueDateInMonth(
+  year: number,
+  month1to12: number,
+  diaPago: number,
+): string {
+  const dim = daysInCalendarMonth(year, month1to12);
+  const day = Math.min(Math.max(1, Math.floor(diaPago)), dim);
+  const m = String(month1to12).padStart(2, "0");
+  const d = String(day).padStart(2, "0");
+  return `${year}-${m}-${d}`;
+}
+
 /** Contrato activo sin pago registrado para el mes en curso (renta en MXN). */
 export type PendingDebtRow = {
   contractId: string;
   tenantName: string;
   propertyName: string;
   amountMxn: number;
+  /** Fecha en que corresponde el pago del mes (según `dia_pago` del contrato), YYYY-MM-DD. */
+  paymentDueDate: string;
 };
 
 export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
@@ -261,7 +280,7 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
 
     const { data: rows, error } = await client.database
       .from("contracts")
-      .select("id, precio_mensual, properties(nombre), tenants(nombre)")
+      .select("id, precio_mensual, dia_pago, properties(nombre), tenants(nombre)")
       .eq("activo", true);
 
     if (error || !rows?.length) return [];
@@ -269,6 +288,7 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
     const raw = rows as unknown as {
       id: string;
       precio_mensual: number;
+      dia_pago: number;
       properties: { nombre: string } | { nombre: string }[] | null;
       tenants: { nombre: string } | { nombre: string }[] | null;
     }[];
@@ -276,6 +296,7 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
     const contracts = raw.map((c) => ({
       id: c.id,
       precio_mensual: c.precio_mensual,
+      dia_pago: Number(c.dia_pago) || 1,
       properties: Array.isArray(c.properties)
         ? (c.properties[0] ?? null)
         : c.properties,
@@ -302,8 +323,15 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
         tenantName: c.tenants?.nombre ?? "—",
         propertyName: c.properties?.nombre ?? "—",
         amountMxn: Number(c.precio_mensual),
+        paymentDueDate: paymentDueDateInMonth(
+          currentYear,
+          currentMonth,
+          c.dia_pago,
+        ),
       }))
       .sort((a, b) => {
+        const byDate = a.paymentDueDate.localeCompare(b.paymentDueDate);
+        if (byDate !== 0) return byDate;
         const byTenant = a.tenantName.localeCompare(b.tenantName, "es");
         if (byTenant !== 0) return byTenant;
         return a.propertyName.localeCompare(b.propertyName, "es");

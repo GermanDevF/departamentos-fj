@@ -120,7 +120,7 @@ export function ContractForm({
             name="propiedad_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Propiedad</FormLabel>
+                <FormLabel htmlFor={field.name}>Propiedad</FormLabel>
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
@@ -151,7 +151,7 @@ export function ContractForm({
             name="inquilino_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Inquilino</FormLabel>
+                <FormLabel htmlFor={field.name}>Inquilino</FormLabel>
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
@@ -182,7 +182,7 @@ export function ContractForm({
             name="fecha_inicio"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Fecha de inicio</FormLabel>
+                <FormLabel htmlFor={field.name}>Fecha de inicio</FormLabel>
                 <ContractFechaInicioPicker field={field} disabled={isSubmitting} />
                 <FormMessage />
               </FormItem>
@@ -194,7 +194,7 @@ export function ContractForm({
             name="tipo_duracion"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Tipo de duración</FormLabel>
+                <FormLabel htmlFor={field.name}>Tipo de duración</FormLabel>
                 <Select
                   value={field.value}
                   onValueChange={(v) => {
@@ -230,11 +230,12 @@ export function ContractForm({
             name="duracion_cantidad"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
+                <FormLabel htmlFor={field.name}>
                   Cantidad ({TIPOS_DURACION.find((t) => t.value === tipoDuracion)?.label.toLowerCase()})
                 </FormLabel>
                 <FormControl>
                   <Input
+                    id={field.name}
                     type="number"
                     min={1}
                     placeholder="Ej: 6"
@@ -259,9 +260,10 @@ export function ContractForm({
             name="precio_mensual"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Precio mensual ($)</FormLabel>
+                <FormLabel htmlFor={field.name}>Precio mensual ($)</FormLabel>
                 <FormControl>
                   <Input
+                    id={field.name}
                     type="number"
                     step="0.01"
                     min={0.01}
@@ -285,9 +287,10 @@ export function ContractForm({
             name="dia_pago"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Día de pago (1-31)</FormLabel>
+                <FormLabel htmlFor={field.name}>Día de pago (1-31)</FormLabel>
                 <FormControl>
                   <Input
+                    id={field.name}
                     type="number"
                     min={1}
                     max={31}

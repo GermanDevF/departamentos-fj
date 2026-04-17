@@ -108,6 +108,7 @@ export function PaymentForm({
   const { isSubmitting, errors } = form.formState;
   const contratoId = useWatch({ control: form.control, name: "contrato_id" });
 
+
   useEffect(() => {
     if (contratoId && !payment) {
       const selected = activeContracts.find((c) => c.id === contratoId);
@@ -128,6 +129,7 @@ export function PaymentForm({
   }
 
   async function handleSubmit(values: PaymentFormValues) {
+    console.log(values);
     const data: CreatePaymentInput = {
       contrato_id: values.contrato_id,
       monto: values.monto,
@@ -158,7 +160,7 @@ export function PaymentForm({
           name="contrato_id"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Contrato</FormLabel>
+              <FormLabel htmlFor={field.name}>Contrato</FormLabel>
               <Select
                 value={field.value}
                 onValueChange={field.onChange}
@@ -212,7 +214,7 @@ export function PaymentForm({
             name="fecha_pago"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Fecha de pago</FormLabel>
+                <FormLabel htmlFor={field.name}>Fecha de pago</FormLabel>
                 <PaymentFechaPagoPicker field={field} disabled={isSubmitting} />
                 <FormMessage />
               </FormItem>
@@ -226,7 +228,7 @@ export function PaymentForm({
             name="periodo_mes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mes del periodo</FormLabel>
+                <FormLabel htmlFor={field.name}>Mes del periodo</FormLabel>
                 <Select
                   value={String(field.value)}
                   onValueChange={(v) => field.onChange(Number(v))}
@@ -255,9 +257,10 @@ export function PaymentForm({
             name="periodo_anio"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Año del periodo</FormLabel>
+                <FormLabel htmlFor={field.name}>Año del periodo</FormLabel>
                 <FormControl>
                   <Input
+                    id={field.name}
                     type="number"
                     min={2020}
                     disabled={isSubmitting}
@@ -279,7 +282,7 @@ export function PaymentForm({
             name="metodo_pago"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Método de pago</FormLabel>
+                <FormLabel htmlFor={field.name}>Método de pago</FormLabel>
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
@@ -309,9 +312,10 @@ export function PaymentForm({
           name="notas"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Notas (opcional)</FormLabel>
+              <FormLabel htmlFor={field.name}>Notas (opcional)</FormLabel>
               <FormControl>
                 <Textarea
+                  id={field.name}
                   placeholder="Observaciones sobre el pago..."
                   rows={2}
                   disabled={isSubmitting}

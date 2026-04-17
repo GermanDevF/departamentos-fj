@@ -51,7 +51,9 @@ export function usePayments() {
   );
 
   useEffect(() => {
-    refresh();
+    queueMicrotask(() => {
+      void refresh();
+    });
   }, [refresh]);
 
   return { payments, loading, create, update, remove, refresh };

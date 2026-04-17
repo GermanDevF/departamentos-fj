@@ -32,7 +32,6 @@ import {
   IconAlertTriangle,
   IconCircleCheck,
   IconArrowRight,
-  IconPlus,
   IconChevronRight,
 } from "@tabler/icons-react";
 
@@ -51,6 +50,17 @@ const currencyFmtUsd = new Intl.NumberFormat("es-MX", {
   currency: "USD",
   maximumFractionDigits: 0,
 });
+
+/** `paymentDueDate` viene como YYYY-MM-DD (fecha local del vencimiento). */
+function formatPaymentDueDate(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  return new Date(y, m - 1, d).toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -249,6 +259,9 @@ export default async function DashboardPage() {
                     <tr className="border-b bg-muted/40 text-left text-xs font-medium tracking-wide text-muted-foreground">
                       <th className="px-4 py-3">Inquilino</th>
                       <th className="hidden px-4 py-3 sm:table-cell">Propiedad</th>
+                      <th className="hidden px-4 py-3 sm:table-cell">
+                        Vencimiento
+                      </th>
                       <th className="px-4 py-3 text-right">Adeudo</th>
                     </tr>
                   </thead>
@@ -263,9 +276,15 @@ export default async function DashboardPage() {
                           <span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">
                             {row.propertyName}
                           </span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">
+                            Vence {formatPaymentDueDate(row.paymentDueDate)}
+                          </span>
                         </td>
                         <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
                           {row.propertyName}
+                        </td>
+                        <td className="hidden px-4 py-3 tabular-nums text-muted-foreground sm:table-cell">
+                          {formatPaymentDueDate(row.paymentDueDate)}
                         </td>
                         <td className="px-4 py-3 text-right text-base font-semibold tabular-nums">
                           {currencyFmtMxn.format(row.amountMxn)}

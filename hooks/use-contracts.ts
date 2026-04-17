@@ -61,7 +61,9 @@ export function useContracts() {
   );
 
   useEffect(() => {
-    refresh();
+    queueMicrotask(() => {
+      void refresh();
+    });
   }, [refresh]);
 
   return { contracts, loading, create, update, deactivate, remove, refresh };

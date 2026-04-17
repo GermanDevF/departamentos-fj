@@ -50,7 +50,9 @@ export function useTenants() {
   );
 
   useEffect(() => {
-    refresh();
+    queueMicrotask(() => {
+      void refresh();
+    });
   }, [refresh]);
 
   return { tenants, loading, create, update, remove, refresh };

@@ -54,7 +54,9 @@ export function useProperties() {
   );
 
   useEffect(() => {
-    refresh();
+    queueMicrotask(() => {
+      void refresh();
+    });
   }, [refresh]);
 
   return { properties, loading, create, update, remove, refresh };
