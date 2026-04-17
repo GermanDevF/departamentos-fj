@@ -3,14 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "bun --env-file=.env next dev",
+    "build": "bun --env-file=.env next build",
+    "start": "bun --env-file=.env next start",
+    "dev:qa": "bun --env-file=.local.env next dev",
+    "build:qa": "bun --env-file=.local.env next build",
+    "start:qa": "bun --env-file=.local.env next start",
     "lint": "eslint",
-    "create-admin": "node scripts/create-admin.mjs",
-    "db:fix-user-profiles-rls": "node scripts/run-insforge-sql.mjs scripts/fix-user-profiles-rls-recursion.sql",
-    "db:shared-business-rls": "node scripts/run-insforge-sql.mjs scripts/shared-business-data-rls.sql",
-    "db:add-payments-moneda": "node scripts/run-insforge-sql.mjs scripts/add-payments-moneda.sql"
+    "create-admin": "bun --env-file=.local.env scripts/create-admin.mjs",
+    "db:fix-user-profiles-rls": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/fix-user-profiles-rls-recursion.sql",
+    "db:shared-business-rls": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/shared-business-data-rls.sql",
+    "db:add-payments-moneda": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/add-payments-moneda.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "3",

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { IconEdit, IconTrash, IconPlayerStop } from "@tabler/icons-react";
+import { IconEdit, IconTrash, IconPlayerStop, IconHistory } from "@tabler/icons-react";
 import type { ContractRow } from "@/lib/contracts/actions";
 
 interface ContractTableProps {
@@ -22,6 +22,7 @@ interface ContractTableProps {
   onEdit?: (contract: ContractRow) => void;
   onDeactivate?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onDelete?: (id: string) => Promise<{ success: boolean; error?: string }>;
+  onViewHistory?: (contract: ContractRow) => void;
 }
 
 export function ContractTable({
@@ -30,6 +31,7 @@ export function ContractTable({
   onEdit,
   onDeactivate,
   onDelete,
+  onViewHistory,
 }: ContractTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<ContractRow | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<ContractRow | null>(null);
@@ -51,7 +53,7 @@ export function ContractTable({
     setDeactivateTarget(null);
   }
 
-  const hasActions = !!onEdit || !!onDeactivate || !!onDelete;
+  const hasActions = !!onEdit || !!onDeactivate || !!onDelete || !!onViewHistory;
 
   function formatCurrency(amount: number) {
     return new Intl.NumberFormat("es-MX", {
@@ -126,6 +128,16 @@ export function ContractTable({
                 {hasActions && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      {onViewHistory && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onViewHistory(c)}
+                          title="Ver historial de pagos"
+                        >
+                          <IconHistory className="size-4" />
+                        </Button>
+                      )}
                       {onEdit && (
                         <Button
                           variant="ghost"

@@ -10,6 +10,7 @@ import type {
   UpdatePaymentInput,
   ActionResult,
 } from "@/types";
+import type { ContractRow } from "@/lib/contracts/actions";
 
 export interface PaymentRow extends Payment {
   contracts: Contract & {
@@ -338,6 +339,107 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
       });
   } catch {
     return [];
+  }
+}
+
+// --- Historial de pagos por contrato ---
+
+export type PaymentPeriodStatus = "pagado" | "pendiente";
+
+export interface ContractPaymentPeriod {
+  mes: number;
+  anio: number;
+  estado: PaymentPeriodStatus;
+  pago?: Payment;
+  fechaVencimiento: string;
+}
+
+export interface ContractPaymentHistory {
+  contrato: ContractRow;
+  periodos: ContractPaymentPeriod[];
+  totalPagados: number;
+  totalPendientes: number;
+}
+
+export async function getPaymentHistoryByContrato(
+  contratoId: string,
+): Promise<ActionResult<ContractPaymentHistory>> {
+  try {
+    const { client } = await requireAuth();
+
+    const { data: contractData, error: contractError } = await client.database
+      .from("contracts")
+      .select("*, properties(*), tenants(*)")
+      .eq("id", contratoId)
+      .maybeSingle();
+
+    if (contractError || !contractData)
+      return { success: false, error: "Contrato no encontrado." };
+
+    const contrato = contractData as ContractRow;
+
+    const { data: paymentsData, error: paymentsError } = await client.database
+      .from("payments")
+      .select("*")
+      .eq("contrato_id", contratoId)
+      .order("periodo_anio", { ascending: true })
+      .order("periodo_mes", { ascending: true });
+
+    if (paymentsError)
+      return {
+        success: false,
+        error: paymentsError.message ?? "Error al obtener pagos.",
+      };
+
+    const paidMap = new Map<string, Payment>();
+    for (const p of (paymentsData as Payment[]) ?? []) {
+      paidMap.set(`${p.periodo_anio}-${p.periodo_mes}`, p);
+    }
+
+    const startDate = new Date(contrato.fecha_inicio + "T00:00:00");
+    const now = new Date();
+    const endYear = now.getFullYear();
+    const endMonth = now.getMonth() + 1;
+
+    const periodos: ContractPaymentPeriod[] = [];
+    let year = startDate.getFullYear();
+    let month = startDate.getMonth() + 1;
+
+    while (year < endYear || (year === endYear && month <= endMonth)) {
+      const key = `${year}-${month}`;
+      const pago = paidMap.get(key);
+
+      const dim = new Date(year, month, 0).getDate();
+      const day = Math.min(Math.max(1, Math.floor(contrato.dia_pago)), dim);
+      const fechaVencimiento = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+      periodos.push({
+        mes: month,
+        anio: year,
+        estado: pago ? "pagado" : "pendiente",
+        pago,
+        fechaVencimiento,
+      });
+
+      month++;
+      if (month > 12) {
+        month = 1;
+        year++;
+      }
+    }
+
+    const totalPagados = periodos.filter((p) => p.estado === "pagado").length;
+    const totalPendientes = periodos.filter(
+      (p) => p.estado === "pendiente",
+    ).length;
+
+    return {
+      success: true,
+      data: { contrato, periodos, totalPagados, totalPendientes },
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error de conexión.";
+    return { success: false, error: msg };
   }
 }
 

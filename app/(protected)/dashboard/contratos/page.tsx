@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { ContractDialog } from "@/components/contracts/contract-dialog";
+import { ContractPaymentHistoryDialog } from "@/components/contracts/contract-payment-history-dialog";
 import { ContractTable } from "@/components/contracts/contract-table";
 import { Button } from "@/components/ui/button";
 import { useContracts } from "@/hooks/use-contracts";
@@ -20,6 +21,8 @@ export default function ContratosPage() {
   const { tenants } = useTenants();
   const [ dialogOpen, setDialogOpen ] = useState(false);
   const [ editing, setEditing ] = useState<ContractRow | undefined>();
+  const [historyContract, setHistoryContract] = useState<ContractRow | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   function handleCreate() {
     setEditing(undefined);
@@ -52,6 +55,11 @@ export default function ContratosPage() {
       toast.error(result.error ?? "Error al desactivar");
     }
     return result;
+  }
+
+  function handleViewHistory(contract: ContractRow) {
+    setHistoryContract(contract);
+    setHistoryOpen(true);
   }
 
   async function handleDelete(id: string) {
@@ -87,6 +95,7 @@ export default function ContratosPage() {
         onEdit={isAdmin ? handleEdit : undefined}
         onDeactivate={isAdmin ? handleDeactivate : undefined}
         onDelete={isAdmin ? handleDelete : undefined}
+        onViewHistory={handleViewHistory}
       />
 
       {isAdmin && (
@@ -99,6 +108,12 @@ export default function ContratosPage() {
           onSubmit={handleSubmit}
         />
       )}
+
+      <ContractPaymentHistoryDialog
+        contract={historyContract}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </div>
   );
 }
