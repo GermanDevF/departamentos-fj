@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { IconEdit, IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconTrash, IconFileDownload, IconLoader2 } from "@tabler/icons-react";
+import { toast } from "sonner";
 import { METODOS_PAGO } from "@/types";
 import { formatPaymentAmount } from "@/lib/payments/format-currency";
 import type { PaymentRow } from "@/lib/payments/actions";
@@ -38,6 +39,21 @@ export function PaymentTable({
 }: PaymentTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<PaymentRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  async function handleDownload(payment: PaymentRow) {
+    setDownloading(payment.id);
+    try {
+      const { downloadReceiptPDF } = await import(
+        "@/lib/payments/generate-receipt-pdf"
+      );
+      await downloadReceiptPDF(payment);
+    } catch {
+      toast.error("Error al generar el recibo.");
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   async function handleDelete() {
     if (!deleteTarget || !onDelete) return;
@@ -46,8 +62,6 @@ export function PaymentTable({
     setDeleting(false);
     setDeleteTarget(null);
   }
-
-  const hasActions = !!onEdit || !!onDelete;
 
   function methodLabel(value: string) {
     return METODOS_PAGO.find((m) => m.value === value)?.label ?? value;
@@ -86,9 +100,7 @@ export function PaymentTable({
               <TableHead className="hidden sm:table-cell">Periodo</TableHead>
               <TableHead className="hidden lg:table-cell">Fecha pago</TableHead>
               <TableHead className="hidden sm:table-cell">Método</TableHead>
-              {hasActions && (
-                <TableHead className="w-[100px] text-right">Acciones</TableHead>
-              )}
+              <TableHead className="w-[120px] text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -112,30 +124,41 @@ export function PaymentTable({
                 <TableCell className="hidden sm:table-cell">
                   <Badge variant="secondary">{methodLabel(p.metodo_pago)}</Badge>
                 </TableCell>
-                {hasActions && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      {onEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEdit(p)}
-                        >
-                          <IconEdit className="size-4" />
-                        </Button>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Descargar recibo PDF"
+                      disabled={downloading === p.id}
+                      onClick={() => handleDownload(p)}
+                    >
+                      {downloading === p.id ? (
+                        <IconLoader2 className="size-4 animate-spin" />
+                      ) : (
+                        <IconFileDownload className="size-4" />
                       )}
-                      {onDelete && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteTarget(p)}
-                        >
-                          <IconTrash className="size-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                )}
+                    </Button>
+                    {onEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEdit(p)}
+                      >
+                        <IconEdit className="size-4" />
+                      </Button>
+                    )}
+                    {onDelete && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteTarget(p)}
+                      >
+                        <IconTrash className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

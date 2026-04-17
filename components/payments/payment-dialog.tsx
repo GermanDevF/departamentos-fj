@@ -17,6 +17,15 @@ interface PaymentDialogProps {
   payment?: PaymentRow;
   contracts: ContractRow[];
   onSubmit: (data: CreatePaymentInput) => Promise<{ success: boolean; error?: string }>;
+  prefilledValues?: {
+    contrato_id?: string;
+    periodo_mes?: number;
+    periodo_anio?: number;
+    monto?: number;
+  };
+  lockedFields?: { contrato?: boolean; period?: boolean };
+  remainingBalance?: number;
+  submitLabel?: string;
 }
 
 export function PaymentDialog({
@@ -25,6 +34,10 @@ export function PaymentDialog({
   payment,
   contracts,
   onSubmit,
+  prefilledValues,
+  lockedFields,
+  remainingBalance,
+  submitLabel,
 }: PaymentDialogProps) {
   async function handleSubmit(data: CreatePaymentInput) {
     const result = await onSubmit(data);
@@ -32,19 +45,27 @@ export function PaymentDialog({
     return result;
   }
 
+  const title = payment
+    ? "Editar pago"
+    : prefilledValues?.contrato_id
+      ? "Registrar abono"
+      : "Registrar pago";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg sm:p-6">
         <DialogHeader>
-          <DialogTitle>
-            {payment ? "Editar pago" : "Registrar pago"}
-          </DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <PaymentForm
           payment={payment}
           contracts={contracts}
           onSubmit={handleSubmit}
           onCancel={() => onOpenChange(false)}
+          prefilledValues={prefilledValues}
+          lockedFields={lockedFields}
+          remainingBalance={remainingBalance}
+          submitLabel={submitLabel}
         />
       </DialogContent>
     </Dialog>

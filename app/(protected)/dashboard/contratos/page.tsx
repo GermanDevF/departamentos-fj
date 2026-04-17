@@ -113,6 +113,7 @@ export default function ContratosPage() {
         contract={historyContract}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
+        isAdmin={isAdmin}
       />
     </div>
   );

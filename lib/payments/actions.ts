@@ -179,26 +179,30 @@ export async function getPendingPaymentsCount(): Promise<number> {
 
     const { data: activeContracts } = await client.database
       .from("contracts")
-      .select("id")
+      .select("id, precio_mensual")
       .eq("activo", true);
 
     if (!activeContracts || (activeContracts as Contract[]).length === 0)
       return 0;
 
-    const contractIds = (activeContracts as Contract[]).map((c) => c.id);
+    const contracts = activeContracts as (Contract & { precio_mensual: number })[];
+    const contractIds = contracts.map((c) => c.id);
 
-    const { data: paidContracts } = await client.database
+    const { data: periodPayments } = await client.database
       .from("payments")
-      .select("contrato_id")
+      .select("contrato_id, monto")
       .eq("periodo_mes", currentMonth)
       .eq("periodo_anio", currentYear)
       .in("contrato_id", contractIds);
 
-    const paidIds = new Set(
-      (paidContracts as Payment[])?.map((p) => p.contrato_id) ?? [],
-    );
+    const paidSumMap = new Map<string, number>();
+    for (const p of (periodPayments as { contrato_id: string; monto: number }[]) ?? []) {
+      paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + Number(p.monto));
+    }
 
-    return contractIds.filter((id) => !paidIds.has(id)).length;
+    return contracts.filter(
+      (c) => (paidSumMap.get(c.id) ?? 0) < Number(c.precio_mensual),
+    ).length;
   } catch {
     return 0;
   }
@@ -219,25 +223,25 @@ export async function getMonthlyPendingAmount(): Promise<number> {
     if (!activeContracts || (activeContracts as Contract[]).length === 0)
       return 0;
 
-    const contracts = activeContracts as (Contract & {
-      precio_mensual: number;
-    })[];
+    const contracts = activeContracts as (Contract & { precio_mensual: number })[];
     const contractIds = contracts.map((c) => c.id);
 
-    const { data: paidContracts } = await client.database
+    const { data: periodPayments } = await client.database
       .from("payments")
-      .select("contrato_id")
+      .select("contrato_id, monto")
       .eq("periodo_mes", currentMonth)
       .eq("periodo_anio", currentYear)
       .in("contrato_id", contractIds);
 
-    const paidIds = new Set(
-      (paidContracts as Payment[])?.map((p) => p.contrato_id) ?? [],
-    );
+    const paidSumMap = new Map<string, number>();
+    for (const p of (periodPayments as { contrato_id: string; monto: number }[]) ?? []) {
+      paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + Number(p.monto));
+    }
 
-    return contracts
-      .filter((c) => !paidIds.has(c.id))
-      .reduce((sum, c) => sum + Number(c.precio_mensual), 0);
+    return contracts.reduce((sum, c) => {
+      const remaining = Math.max(0, Number(c.precio_mensual) - (paidSumMap.get(c.id) ?? 0));
+      return sum + remaining;
+    }, 0);
   } catch {
     return 0;
   }
@@ -308,22 +312,23 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
 
     const { data: paidRows } = await client.database
       .from("payments")
-      .select("contrato_id")
+      .select("contrato_id, monto")
       .eq("periodo_mes", currentMonth)
       .eq("periodo_anio", currentYear)
       .in("contrato_id", contractIds);
 
-    const paidIds = new Set(
-      (paidRows as Payment[])?.map((p) => p.contrato_id) ?? [],
-    );
+    const paidSumMap = new Map<string, number>();
+    for (const p of (paidRows as { contrato_id: string; monto: number }[]) ?? []) {
+      paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + Number(p.monto));
+    }
 
     return contracts
-      .filter((c) => !paidIds.has(c.id))
+      .filter((c) => (paidSumMap.get(c.id) ?? 0) < Number(c.precio_mensual))
       .map((c) => ({
         contractId: c.id,
         tenantName: c.tenants?.nombre ?? "—",
         propertyName: c.properties?.nombre ?? "—",
-        amountMxn: Number(c.precio_mensual),
+        amountMxn: Math.max(0, Number(c.precio_mensual) - (paidSumMap.get(c.id) ?? 0)),
         paymentDueDate: paymentDueDateInMonth(
           currentYear,
           currentMonth,
@@ -344,13 +349,15 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
 
 // --- Historial de pagos por contrato ---
 
-export type PaymentPeriodStatus = "pagado" | "pendiente";
+export type PaymentPeriodStatus = "pagado" | "parcial" | "pendiente";
 
 export interface ContractPaymentPeriod {
   mes: number;
   anio: number;
   estado: PaymentPeriodStatus;
-  pago?: Payment;
+  pagos: Payment[];
+  totalPagado: number;
+  saldoPendiente: number;
   fechaVencimiento: string;
 }
 
@@ -358,6 +365,7 @@ export interface ContractPaymentHistory {
   contrato: ContractRow;
   periodos: ContractPaymentPeriod[];
   totalPagados: number;
+  totalParciales: number;
   totalPendientes: number;
 }
 
@@ -391,9 +399,11 @@ export async function getPaymentHistoryByContrato(
         error: paymentsError.message ?? "Error al obtener pagos.",
       };
 
-    const paidMap = new Map<string, Payment>();
+    const paymentsMap = new Map<string, Payment[]>();
     for (const p of (paymentsData as Payment[]) ?? []) {
-      paidMap.set(`${p.periodo_anio}-${p.periodo_mes}`, p);
+      const key = `${p.periodo_anio}-${p.periodo_mes}`;
+      if (!paymentsMap.has(key)) paymentsMap.set(key, []);
+      paymentsMap.get(key)!.push(p);
     }
 
     const startDate = new Date(contrato.fecha_inicio + "T00:00:00");
@@ -407,7 +417,18 @@ export async function getPaymentHistoryByContrato(
 
     while (year < endYear || (year === endYear && month <= endMonth)) {
       const key = `${year}-${month}`;
-      const pago = paidMap.get(key);
+      const pagos = paymentsMap.get(key) ?? [];
+      const totalPagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
+      const saldoPendiente = Math.max(
+        0,
+        Number(contrato.precio_mensual) - totalPagado,
+      );
+      const estado: PaymentPeriodStatus =
+        totalPagado === 0
+          ? "pendiente"
+          : totalPagado >= Number(contrato.precio_mensual)
+            ? "pagado"
+            : "parcial";
 
       const dim = new Date(year, month, 0).getDate();
       const day = Math.min(Math.max(1, Math.floor(contrato.dia_pago)), dim);
@@ -416,8 +437,10 @@ export async function getPaymentHistoryByContrato(
       periodos.push({
         mes: month,
         anio: year,
-        estado: pago ? "pagado" : "pendiente",
-        pago,
+        estado,
+        pagos,
+        totalPagado,
+        saldoPendiente,
         fechaVencimiento,
       });
 
@@ -429,13 +452,16 @@ export async function getPaymentHistoryByContrato(
     }
 
     const totalPagados = periodos.filter((p) => p.estado === "pagado").length;
+    const totalParciales = periodos.filter(
+      (p) => p.estado === "parcial",
+    ).length;
     const totalPendientes = periodos.filter(
       (p) => p.estado === "pendiente",
     ).length;
 
     return {
       success: true,
-      data: { contrato, periodos, totalPagados, totalPendientes },
+      data: { contrato, periodos, totalPagados, totalParciales, totalPendientes },
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error de conexión.";

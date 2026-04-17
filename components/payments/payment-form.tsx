@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { formatPaymentAmount } from "@/lib/payments/format-currency";
 import type { ContractRow } from "@/lib/contracts/actions";
 import type { PaymentRow } from "@/lib/payments/actions";
 import { paymentSchema, type PaymentFormValues } from "@/lib/validations";
@@ -56,6 +57,15 @@ interface PaymentFormProps {
   contracts: ContractRow[];
   onSubmit: (data: CreatePaymentInput) => Promise<{ success: boolean; error?: string }>;
   onCancel: () => void;
+  prefilledValues?: {
+    contrato_id?: string;
+    periodo_mes?: number;
+    periodo_anio?: number;
+    monto?: number;
+  };
+  lockedFields?: { contrato?: boolean; period?: boolean };
+  remainingBalance?: number;
+  submitLabel?: string;
 }
 
 function PaymentFechaPagoPicker({
@@ -87,6 +97,10 @@ export function PaymentForm({
   contracts,
   onSubmit,
   onCancel,
+  prefilledValues,
+  lockedFields,
+  remainingBalance,
+  submitLabel,
 }: PaymentFormProps) {
   const now = new Date();
   const activeContracts = contracts.filter((c) => c.activo);
@@ -94,11 +108,11 @@ export function PaymentForm({
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      contrato_id: payment?.contrato_id ?? "",
-      monto: payment?.monto ?? (undefined as unknown as number),
-      fecha_pago: payment?.fecha_pago ?? now.toISOString().split("T")[ 0 ],
-      periodo_mes: payment?.periodo_mes ?? now.getMonth() + 1,
-      periodo_anio: payment?.periodo_anio ?? now.getFullYear(),
+      contrato_id: payment?.contrato_id ?? prefilledValues?.contrato_id ?? "",
+      monto: payment?.monto ?? prefilledValues?.monto ?? (undefined as unknown as number),
+      fecha_pago: payment?.fecha_pago ?? now.toISOString().split("T")[0],
+      periodo_mes: payment?.periodo_mes ?? prefilledValues?.periodo_mes ?? now.getMonth() + 1,
+      periodo_anio: payment?.periodo_anio ?? prefilledValues?.periodo_anio ?? now.getFullYear(),
       metodo_pago: payment?.metodo_pago ?? "efectivo",
       notas: payment?.notas ?? "",
     },
@@ -110,13 +124,13 @@ export function PaymentForm({
 
 
   useEffect(() => {
-    if (contratoId && !payment) {
+    if (contratoId && !payment && !prefilledValues?.monto) {
       const selected = activeContracts.find((c) => c.id === contratoId);
       if (selected) {
         form.setValue("monto", selected.precio_mensual);
       }
     }
-  }, [ contratoId, activeContracts, payment, form ]);
+  }, [contratoId, activeContracts, payment, prefilledValues?.monto, form]);
 
   function contractLabel(c: ContractRow) {
     const prop = c.properties?.nombre ?? "Propiedad";
@@ -164,7 +178,7 @@ export function PaymentForm({
               <Select
                 value={field.value}
                 onValueChange={field.onChange}
-                disabled={isSubmitting || !!payment}
+                disabled={isSubmitting || !!payment || !!lockedFields?.contrato}
               >
                 <FormControl>
                   <SelectTrigger className="w-full">
@@ -204,6 +218,11 @@ export function PaymentForm({
                     />
                   </FormControl>
                 </div>
+                {remainingBalance != null && remainingBalance > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Saldo restante: {formatPaymentAmount(remainingBalance, "MXN")}
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -232,7 +251,7 @@ export function PaymentForm({
                 <Select
                   value={String(field.value)}
                   onValueChange={(v) => field.onChange(Number(v))}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !!lockedFields?.period}
                 >
                   <FormControl>
                     <SelectTrigger className="w-full">
@@ -263,7 +282,7 @@ export function PaymentForm({
                     id={field.name}
                     type="number"
                     min={2020}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !!lockedFields?.period}
                     value={field.value ?? ""}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -343,10 +362,8 @@ export function PaymentForm({
                 <IconLoader2 className="animate-spin" />
                 Guardando...
               </>
-            ) : payment ? (
-              "Actualizar"
             ) : (
-              "Registrar pago"
+              submitLabel ?? (payment ? "Actualizar" : "Registrar pago")
             )}
           </Button>
         </div>

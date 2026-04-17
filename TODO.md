@@ -4,7 +4,7 @@
 
 ### Finanzas y pagos
 - [x] Historial de pagos por contrato — vista de meses pagados vs. pendientes
-- [ ] Recibos de pago en PDF — con datos del inquilino, propiedad y período
+- [x] Recibos de pago en PDF — con datos del inquilino, propiedad y período
 - [ ] Historial de mora — registro de pagos tardíos con días de retraso
 - [ ] Incremento de renta — ajustes anuales de precio por contrato con historial
 - [ ] Alertas de vencimiento de contrato — 7, 14 y 30 días antes
