@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PaymentForm } from "./payment-form";
-import type { CreatePaymentInput } from "@/types";
+import type { CreatePaymentInput, PaymentMoneda } from "@/types";
 import type { ContractRow } from "@/lib/contracts/actions";
 import type { PaymentRow } from "@/lib/payments/actions";
 
@@ -22,6 +22,7 @@ interface PaymentDialogProps {
     periodo_mes?: number;
     periodo_anio?: number;
     monto?: number;
+    moneda?: PaymentMoneda;
   };
   lockedFields?: { contrato?: boolean; period?: boolean };
   remainingBalance?: number;

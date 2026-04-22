@@ -36,8 +36,9 @@ import type {
 import type { ContractRow } from "@/lib/contracts/actions";
 import { formatPaymentAmount } from "@/lib/payments/format-currency";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
+import { PdfViewerDialog } from "@/components/ui/pdf-viewer-dialog";
 import { METODOS_PAGO } from "@/types";
-import type { Payment, CreatePaymentInput } from "@/types";
+import type { Payment, CreatePaymentInput, PaymentMoneda } from "@/types";
 import { toast } from "sonner";
 
 const MESES = [
@@ -69,8 +70,39 @@ export function ContractPaymentHistoryDialog({
     periodo_mes?: number;
     periodo_anio?: number;
     monto?: number;
+    moneda?: PaymentMoneda;
   } | undefined>(undefined);
   const [abonoRemaining, setAbonoRemaining] = useState<number | undefined>();
+
+  // PDF viewer state
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerBlobUrl, setViewerBlobUrl] = useState<string | null>(null);
+  const [viewerFilename, setViewerFilename] = useState("");
+
+  async function handleViewReceipt(pago: Payment) {
+    if (!contract) return;
+    try {
+      const paymentRow = toPaymentRow(pago);
+      const { generateReceiptBlob } = await import(
+        "@/lib/payments/generate-receipt-pdf"
+      );
+      const { blob, filename } = await generateReceiptBlob(paymentRow);
+      const url = URL.createObjectURL(blob);
+      setViewerBlobUrl(url);
+      setViewerFilename(filename);
+      setViewerOpen(true);
+    } catch {
+      toast.error("Error al generar el recibo.");
+    }
+  }
+
+  function handleViewerClose(open: boolean) {
+    if (!open && viewerBlobUrl) {
+      URL.revokeObjectURL(viewerBlobUrl);
+      setViewerBlobUrl(null);
+    }
+    setViewerOpen(open);
+  }
 
   function refreshHistory() {
     if (!contract) return;
@@ -126,6 +158,7 @@ export function ContractPaymentHistoryDialog({
       periodo_mes: periodo.mes,
       periodo_anio: periodo.anio,
       monto: periodo.saldoPendiente > 0 ? periodo.saldoPendiente : undefined,
+      moneda: (contract.moneda as "MXN" | "USD") ?? "MXN",
     });
     setAbonoRemaining(periodo.saldoPendiente > 0 ? periodo.saldoPendiente : undefined);
     setAbonoOpen(true);
@@ -195,7 +228,7 @@ export function ContractPaymentHistoryDialog({
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <IconCoin className="size-3.5 shrink-0" />
                   <span>
-                    {formatPaymentAmount(contract.precio_mensual, "MXN")} / mes
+                    {formatPaymentAmount(contract.precio_mensual, contract.moneda ?? "MXN")} / mes
                     — día {contract.dia_pago}
                   </span>
                 </div>
@@ -273,12 +306,13 @@ export function ContractPaymentHistoryDialog({
                               key={`${periodo.anio}-${periodo.mes}`}
                               periodo={periodo}
                               precioPorMes={history.contrato.precio_mensual}
+                              contractMoneda={history.contrato.moneda ?? "MXN"}
                               getMetodoLabel={getMetodoLabel}
                               isAdmin={isAdmin}
                               onAddAbono={() => handleOpenAbono(periodo)}
-                              onDownloadReceipt={
+                              onViewReceipt={
                                 periodo.pagos.length > 0
-                                  ? (pago) => toPaymentRow(pago)
+                                  ? handleViewReceipt
                                   : undefined
                               }
                             />
@@ -313,23 +347,32 @@ export function ContractPaymentHistoryDialog({
           }
         />
       )}
+
+      <PdfViewerDialog
+        open={viewerOpen}
+        onOpenChange={handleViewerClose}
+        blobUrl={viewerBlobUrl}
+        filename={viewerFilename}
+      />
     </>
   );
 }
 
 function PeriodCard({
   periodo,
+  contractMoneda,
   getMetodoLabel,
   isAdmin,
   onAddAbono,
-  onDownloadReceipt,
+  onViewReceipt,
 }: {
   periodo: ContractPaymentPeriod;
   precioPorMes: number;
+  contractMoneda: string;
   getMetodoLabel: (v: string) => string;
   isAdmin?: boolean;
   onAddAbono?: () => void;
-  onDownloadReceipt?: (pago: Payment) => PaymentRow;
+  onViewReceipt?: (pago: Payment) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -358,20 +401,11 @@ function PeriodCard({
 
   const badgeLabel = isPaid ? "Pagado" : isParcial ? "Parcial" : "Pendiente";
 
-  async function handleDownload(pago: Payment) {
-    if (!onDownloadReceipt) return;
+  function handleViewClick(pago: Payment) {
+    if (!onViewReceipt) return;
     setDownloading(pago.id);
-    try {
-      const paymentRow = onDownloadReceipt(pago);
-      const { downloadReceiptPDF } = await import(
-        "@/lib/payments/generate-receipt-pdf"
-      );
-      await downloadReceiptPDF(paymentRow);
-    } catch {
-      toast.error("Error al generar el recibo.");
-    } finally {
-      setDownloading(null);
-    }
+    onViewReceipt(pago);
+    setDownloading(null);
   }
 
   return (
@@ -402,7 +436,7 @@ function PeriodCard({
             {(isPaid || isParcial) && (
               <p className="text-xs text-muted-foreground">
                 {isParcial
-                  ? `Saldo restante: ${formatPaymentAmount(periodo.saldoPendiente, "MXN")}`
+                  ? `Saldo restante: ${formatPaymentAmount(periodo.saldoPendiente, contractMoneda)}`
                   : `${periodo.pagos.length} pago${periodo.pagos.length > 1 ? "s" : ""}`}
               </p>
             )}
@@ -423,7 +457,7 @@ function PeriodCard({
             >
               {formatPaymentAmount(
                 periodo.totalPagado,
-                periodo.pagos[0]?.moneda ?? "MXN",
+                contractMoneda,
               )}
             </span>
           )}
@@ -448,13 +482,13 @@ function PeriodCard({
               {expanded ? "Ocultar" : `Ver ${periodo.pagos.length} pagos`}
             </Button>
           )}
-          {periodo.pagos.length === 1 && onDownloadReceipt && (
+          {periodo.pagos.length === 1 && onViewReceipt && (
             <Button
               size="sm"
               variant="ghost"
               className="h-7 gap-1 px-2 text-xs text-muted-foreground"
               disabled={downloading === periodo.pagos[0].id}
-              onClick={() => handleDownload(periodo.pagos[0])}
+              onClick={() => handleViewClick(periodo.pagos[0])}
             >
               {downloading === periodo.pagos[0].id ? (
                 <IconLoader2 className="size-3.5 animate-spin" />
@@ -497,13 +531,13 @@ function PeriodCard({
                 <span className="font-medium">
                   {formatPaymentAmount(pago.monto, pago.moneda)}
                 </span>
-                {onDownloadReceipt && (
+                {onViewReceipt && (
                   <Button
                     size="icon"
                     variant="ghost"
                     className="size-6"
                     disabled={downloading === pago.id}
-                    onClick={() => handleDownload(pago)}
+                    onClick={() => handleViewClick(pago)}
                   >
                     {downloading === pago.id ? (
                       <IconLoader2 className="size-3 animate-spin" />

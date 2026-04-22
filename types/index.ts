@@ -1,6 +1,27 @@
 // --- Entidades base ---
 // Datos de negocio compartidos por la empresa. `user_id` = quién creó el registro (auditoría).
 
+export interface Direccion {
+  id: string;
+  user_id: string;
+  nombre: string;
+  calle: string;
+  numero_exterior: string;
+  numero_interior: string | null;
+  colonia: string;
+  ciudad: string;
+  estado: string;
+  cp: string | null;
+  notas: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PropertyPhoto {
+  url: string;
+  storage_key: string;
+}
+
 export interface Property {
   id: string;
   user_id: string;
@@ -8,6 +29,11 @@ export interface Property {
   direccion: string;
   descripcion: string | null;
   disponible: boolean;
+  contrato_agua: string | null;
+  contrato_luz: string | null;
+  contrato_internet: string | null;
+  direccion_id: string | null;
+  fotos: PropertyPhoto[];
   created_at: string;
   updated_at: string;
 }
@@ -18,6 +44,10 @@ export interface Tenant {
   nombre: string;
   telefono: string;
   email: string | null;
+  ine_frontal_url: string | null;
+  ine_frontal_key: string | null;
+  ine_trasera_url: string | null;
+  ine_trasera_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +71,7 @@ export interface Contract {
   tipo_duracion: TipoDuracion;
   duracion_cantidad: number | null;
   precio_mensual: number;
+  moneda: PaymentMoneda;
   dia_pago: number;
   activo: boolean;
   created_at: string;
@@ -56,11 +87,29 @@ export interface ContractWithRelations extends Contract {
 
 // --- DTOs de entrada ---
 
+export interface CreateDireccionInput {
+  nombre: string;
+  calle: string;
+  numero_exterior: string;
+  numero_interior?: string;
+  colonia: string;
+  ciudad: string;
+  estado: string;
+  cp?: string;
+  notas?: string;
+}
+
+export type UpdateDireccionInput = Partial<CreateDireccionInput>;
+
 export interface CreatePropertyInput {
   nombre: string;
   direccion: string;
+  direccion_id?: string | null;
   descripcion?: string;
   disponible?: boolean;
+  contrato_agua?: string;
+  contrato_luz?: string;
+  contrato_internet?: string;
 }
 
 export type UpdatePropertyInput = Partial<CreatePropertyInput>;
@@ -80,6 +129,7 @@ export interface CreateContractInput {
   tipo_duracion: TipoDuracion;
   duracion_cantidad: number | null;
   precio_mensual: number;
+  moneda: PaymentMoneda;
   dia_pago: number;
 }
 
@@ -95,6 +145,7 @@ export interface Payment {
   contrato_id: string;
   monto: number;
   moneda: PaymentMoneda;
+  tipo_cambio: number | null;
   fecha_pago: string;
   periodo_mes: number;
   periodo_anio: number;
@@ -109,6 +160,8 @@ export interface Payment {
 export interface CreatePaymentInput {
   contrato_id: string;
   monto: number;
+  moneda?: PaymentMoneda;
+  tipo_cambio?: number | null;
   fecha_pago: string;
   periodo_mes: number;
   periodo_anio: number;

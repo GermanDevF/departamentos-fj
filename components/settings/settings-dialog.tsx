@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  IconCoin,
   IconLoader2,
   IconMail,
   IconPhoto,
@@ -40,12 +41,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 
-type SettingsSection = "profile" | "account";
+type SettingsSection = "profile" | "account" | "preferences";
 
 const navItems: { id: SettingsSection; label: string; icon: typeof IconUser }[] =
   [
     { id: "profile", label: "Perfil", icon: IconUser },
     { id: "account", label: "Cuenta", icon: IconMail },
+    { id: "preferences", label: "Preferencias", icon: IconCoin },
   ];
 
 export function SettingsDialog({
@@ -65,7 +67,10 @@ export function SettingsDialog({
 
   const form = useForm<ProfileSettingsFormValues>({
     resolver: zodResolver(profileSettingsSchema),
-    defaultValues: { name: user?.name ?? "" },
+    defaultValues: {
+      name: user?.name ?? "",
+      default_tipo_cambio: user?.defaultTipoCambio ?? null,
+    },
     mode: "onBlur",
   });
 
@@ -109,6 +114,9 @@ export function SettingsDialog({
       fd.set("name", values.name);
       fd.set("removeAvatar", removeAvatar ? "true" : "false");
       if (avatarFile) fd.set("avatar", avatarFile);
+      if (values.default_tipo_cambio != null) {
+        fd.set("default_tipo_cambio", String(values.default_tipo_cambio));
+      }
 
       const result = await saveMyProfileSettings(fd);
       if (result.success) {
@@ -304,6 +312,73 @@ export function SettingsDialog({
                   </p>
                 </div>
               </div>
+            )}
+
+            {section === "preferences" && (
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-6"
+                >
+                  <FormField
+                    control={form.control}
+                    name="default_tipo_cambio"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de cambio por defecto</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            placeholder="Ej: 17.50"
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              field.onChange(val === "" ? null : Number(val));
+                            }}
+                            onBlur={field.onBlur}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Se usará como valor inicial al registrar pagos en
+                          moneda distinta a la del contrato. Puedes
+                          sobreescribirlo en cada pago.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.formState.errors.root && (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        {form.formState.errors.root.message}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={pending}>
+                      {pending ? (
+                        <>
+                          <IconLoader2 className="size-4 animate-spin" />
+                          Guardando…
+                        </>
+                      ) : (
+                        "Guardar cambios"
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
             )}
           </div>
         </div>

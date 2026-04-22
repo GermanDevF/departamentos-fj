@@ -25,8 +25,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import type { ControllerRenderProps } from "react-hook-form";
 import { IconLoader2 } from "@tabler/icons-react";
 import { contractSchema, type ContractFormValues } from "@/lib/validations";
-import type { Property, Tenant, CreateContractInput, TipoDuracion } from "@/types";
-import { TIPOS_DURACION } from "@/types";
+import type { Property, Tenant, CreateContractInput, TipoDuracion, PaymentMoneda } from "@/types";
+import { TIPOS_DURACION, PAYMENT_MONEDAS } from "@/types";
 import type { ContractRow } from "@/lib/contracts/actions";
 
 interface ContractFormProps {
@@ -76,6 +76,7 @@ export function ContractForm({
       tipo_duracion: contract?.tipo_duracion ?? "meses",
       duracion_cantidad: contract?.duracion_cantidad ?? null,
       precio_mensual: contract?.precio_mensual ?? (undefined as unknown as number),
+      moneda: contract?.moneda ?? "MXN",
       dia_pago: contract?.dia_pago ?? (undefined as unknown as number),
     },
     mode: "onBlur",
@@ -85,6 +86,10 @@ export function ContractForm({
   const tipoDuracion = useWatch({
     control: form.control,
     name: "tipo_duracion",
+  });
+  const moneda = useWatch({
+    control: form.control,
+    name: "moneda",
   });
 
   async function handleSubmit(values: ContractFormValues) {
@@ -96,6 +101,7 @@ export function ContractForm({
       duracion_cantidad:
         values.tipo_duracion === "indefinido" ? null : values.duracion_cantidad,
       precio_mensual: values.precio_mensual,
+      moneda: values.moneda as PaymentMoneda,
       dia_pago: values.dia_pago,
     };
 
@@ -254,13 +260,13 @@ export function ContractForm({
           />
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <FormField
             control={form.control}
             name="precio_mensual"
             render={({ field }) => (
               <FormItem>
-                <FormLabel htmlFor={field.name}>Precio mensual ($)</FormLabel>
+                <FormLabel htmlFor={field.name}>Precio mensual ({moneda ?? "MXN"})</FormLabel>
                 <FormControl>
                   <Input
                     id={field.name}
@@ -277,6 +283,35 @@ export function ContractForm({
                     onBlur={field.onBlur}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="moneda"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor={field.name}>Moneda</FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={isSubmitting}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {PAYMENT_MONEDAS.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

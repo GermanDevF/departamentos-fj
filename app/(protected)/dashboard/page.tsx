@@ -87,11 +87,17 @@ export default async function DashboardPage() {
     getPendingDebtsByTenantForCurrentMonth(),
   ]);
 
-  const totalExpected = monthlyCollected.mxn + monthlyPending;
-  const collectionRate =
-    totalExpected > 0
-      ? Math.round((monthlyCollected.mxn / totalExpected) * 100)
+  const totalExpectedMxn = monthlyCollected.mxn + monthlyPending.mxn;
+  const totalExpectedUsd = monthlyCollected.usd + monthlyPending.usd;
+  const collectionRateMxn =
+    totalExpectedMxn > 0
+      ? Math.round((monthlyCollected.mxn / totalExpectedMxn) * 100)
       : 0;
+  const collectionRateUsd =
+    totalExpectedUsd > 0
+      ? Math.round((monthlyCollected.usd / totalExpectedUsd) * 100)
+      : 0;
+  const hasUsd = totalExpectedUsd > 0;
 
   const now = new Date();
   const greeting = getGreeting(now);
@@ -146,16 +152,10 @@ export default async function DashboardPage() {
                 ) : null}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1">
+            <CardContent>
               <p className="text-xs text-muted-foreground">
                 Total cobrado este mes
               </p>
-              {monthlyCollected.usd > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  El porcentaje de cobro usa solo montos en MXN frente a la renta
-                  esperada en pesos.
-                </p>
-              ) : null}
             </CardContent>
           </Card>
 
@@ -170,8 +170,15 @@ export default async function DashboardPage() {
                   Por cobrar
                 </CardDescription>
               </div>
-              <CardTitle className="text-3xl font-bold tabular-nums tracking-tight">
-                {currencyFmtMxn.format(monthlyPending)}
+              <CardTitle className="space-y-1 text-3xl font-bold tabular-nums tracking-tight">
+                <span className="block">
+                  {currencyFmtMxn.format(monthlyPending.mxn)}
+                </span>
+                {monthlyPending.usd > 0 ? (
+                  <span className="block text-xl font-semibold text-muted-foreground">
+                    {currencyFmtUsd.format(monthlyPending.usd)}
+                  </span>
+                ) : null}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -204,23 +211,48 @@ export default async function DashboardPage() {
                   Meta mensual
                 </CardDescription>
               </div>
-              <CardTitle className="text-3xl font-bold tabular-nums tracking-tight">
-                {currencyFmtMxn.format(totalExpected)}
+              <CardTitle className="space-y-1 text-3xl font-bold tabular-nums tracking-tight">
+                <span className="block">
+                  {currencyFmtMxn.format(totalExpectedMxn)}
+                </span>
+                {hasUsd ? (
+                  <span className="block text-xl font-semibold text-muted-foreground">
+                    {currencyFmtUsd.format(totalExpectedUsd)}
+                  </span>
+                ) : null}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Progreso de cobro</span>
-                <span className="font-mono font-semibold text-foreground">
-                  {collectionRate}%
-                </span>
+            <CardContent className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Cobro MXN</span>
+                  <span className="font-mono font-semibold text-foreground">
+                    {collectionRateMxn}%
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${collectionRateMxn}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                  style={{ width: `${collectionRate}%` }}
-                />
-              </div>
+              {hasUsd ? (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Cobro USD</span>
+                    <span className="font-mono font-semibold text-foreground">
+                      {collectionRateUsd}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                      style={{ width: `${collectionRateUsd}%` }}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </div>
@@ -232,7 +264,7 @@ export default async function DashboardPage() {
           <div>
             <h2 className="text-lg font-semibold">Adeudos por inquilino</h2>
             <p className="text-sm text-muted-foreground">
-              Renta del mes sin pago registrado (según precio del contrato en MXN).
+              Renta del mes sin pago completo registrado.
             </p>
           </div>
           {pendingDebtsByTenant.length > 0 ? (
@@ -287,7 +319,9 @@ export default async function DashboardPage() {
                           {formatPaymentDueDate(row.paymentDueDate)}
                         </td>
                         <td className="px-4 py-3 text-right text-base font-semibold tabular-nums">
-                          {currencyFmtMxn.format(row.amountMxn)}
+                          {row.moneda === "USD"
+                            ? currencyFmtUsd.format(row.amount)
+                            : currencyFmtMxn.format(row.amount)}
                         </td>
                       </tr>
                     ))}
@@ -301,12 +335,22 @@ export default async function DashboardPage() {
                     ? "contrato con adeudo"
                     : "contratos con adeudo"}
                 </p>
-                <p className="text-sm font-semibold tabular-nums">
-                  Total:{" "}
-                  {currencyFmtMxn.format(
-                    pendingDebtsByTenant.reduce((s, r) => s + r.amountMxn, 0),
-                  )}
-                </p>
+                <div className="flex gap-3 text-sm font-semibold tabular-nums">
+                  {(() => {
+                    const totalMxn = pendingDebtsByTenant
+                      .filter((r) => (r.moneda ?? "MXN") !== "USD")
+                      .reduce((s, r) => s + r.amount, 0);
+                    const totalUsd = pendingDebtsByTenant
+                      .filter((r) => r.moneda === "USD")
+                      .reduce((s, r) => s + r.amount, 0);
+                    return (
+                      <>
+                        {totalMxn > 0 && <span>{currencyFmtMxn.format(totalMxn)}</span>}
+                        {totalUsd > 0 && <span>{currencyFmtUsd.format(totalUsd)}</span>}
+                      </>
+                    );
+                  })()}
+                </div>
               </CardFooter>
             </>
           )}

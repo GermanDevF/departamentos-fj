@@ -21,6 +21,23 @@ export interface PaymentRow extends Payment {
 
 const VALID_METHODS = ["efectivo", "transferencia", "deposito", "otro"];
 
+/**
+ * Convierte el monto de un pago a la moneda del contrato.
+ * Si las monedas coinciden, retorna el monto tal cual.
+ * Si difieren, usa `tipo_cambio` (cuántas unidades de moneda‑contrato por 1 de moneda‑pago).
+ * Sin tipo_cambio registrado, el pago no puede convertirse y retorna 0.
+ */
+function toContractCurrency(
+  monto: number,
+  paymentMoneda: string,
+  contractMoneda: string,
+  tipoCambio: number | null | undefined,
+): number {
+  if ((paymentMoneda ?? "MXN") === contractMoneda) return Number(monto);
+  if (!tipoCambio || tipoCambio <= 0) return 0;
+  return Number(monto) * tipoCambio;
+}
+
 export async function getPayments(): Promise<ActionResult<PaymentRow[]>> {
   try {
     const { client } = await requireAuth();
@@ -64,7 +81,7 @@ export async function createPayment(
 
     const { data: contract, error: contractErr } = await client.database
       .from("contracts")
-      .select("id, activo")
+      .select("id, activo, moneda")
       .eq("id", input.contrato_id)
       .maybeSingle();
 
@@ -73,6 +90,13 @@ export async function createPayment(
     if (!(contract as Contract).activo)
       return { success: false, error: "El contrato no está activo." };
 
+    const moneda = input.moneda ?? (contract as Contract).moneda ?? "MXN";
+
+    const tipoCambio =
+      moneda !== ((contract as Contract).moneda ?? "MXN")
+        ? input.tipo_cambio ?? null
+        : null;
+
     const { data, error } = await client.database
       .from("payments")
       .insert([
@@ -80,6 +104,8 @@ export async function createPayment(
           user_id: userId,
           contrato_id: input.contrato_id,
           monto: input.monto,
+          moneda,
+          tipo_cambio: tipoCambio,
           fecha_pago: input.fecha_pago,
           periodo_mes: input.periodo_mes,
           periodo_anio: input.periodo_anio,
@@ -131,6 +157,8 @@ export async function updatePayment(
       return { success: false, error: "El método de pago no es válido." };
     updates.metodo_pago = input.metodo_pago;
   }
+  if (input.moneda !== undefined) updates.moneda = input.moneda;
+  if (input.tipo_cambio !== undefined) updates.tipo_cambio = input.tipo_cambio;
   if (input.notas !== undefined) updates.notas = input.notas?.trim() || null;
 
   if (Object.keys(updates).length === 0)
@@ -179,25 +207,29 @@ export async function getPendingPaymentsCount(): Promise<number> {
 
     const { data: activeContracts } = await client.database
       .from("contracts")
-      .select("id, precio_mensual")
+      .select("id, precio_mensual, moneda")
       .eq("activo", true);
 
     if (!activeContracts || (activeContracts as Contract[]).length === 0)
       return 0;
 
-    const contracts = activeContracts as (Contract & { precio_mensual: number })[];
+    const contracts = activeContracts as { id: string; precio_mensual: number; moneda: string }[];
     const contractIds = contracts.map((c) => c.id);
 
     const { data: periodPayments } = await client.database
       .from("payments")
-      .select("contrato_id, monto")
+      .select("contrato_id, monto, moneda, tipo_cambio")
       .eq("periodo_mes", currentMonth)
       .eq("periodo_anio", currentYear)
       .in("contrato_id", contractIds);
 
     const paidSumMap = new Map<string, number>();
-    for (const p of (periodPayments as { contrato_id: string; monto: number }[]) ?? []) {
-      paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + Number(p.monto));
+    for (const p of (periodPayments as { contrato_id: string; monto: number; moneda: string; tipo_cambio: number | null }[]) ?? []) {
+      const contract = contracts.find((c) => c.id === p.contrato_id);
+      if (contract) {
+        const converted = toContractCurrency(p.monto, p.moneda ?? "MXN", contract.moneda ?? "MXN", p.tipo_cambio);
+        paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + converted);
+      }
     }
 
     return contracts.filter(
@@ -208,7 +240,9 @@ export async function getPendingPaymentsCount(): Promise<number> {
   }
 }
 
-export async function getMonthlyPendingAmount(): Promise<number> {
+export type MonthlyPendingByCurrency = { mxn: number; usd: number };
+
+export async function getMonthlyPendingAmount(): Promise<MonthlyPendingByCurrency> {
   try {
     const { client } = await requireAuth();
     const now = new Date();
@@ -217,33 +251,42 @@ export async function getMonthlyPendingAmount(): Promise<number> {
 
     const { data: activeContracts } = await client.database
       .from("contracts")
-      .select("id, precio_mensual")
+      .select("id, precio_mensual, moneda")
       .eq("activo", true);
 
     if (!activeContracts || (activeContracts as Contract[]).length === 0)
-      return 0;
+      return { mxn: 0, usd: 0 };
 
-    const contracts = activeContracts as (Contract & { precio_mensual: number })[];
+    const contracts = activeContracts as { id: string; precio_mensual: number; moneda: string }[];
     const contractIds = contracts.map((c) => c.id);
 
     const { data: periodPayments } = await client.database
       .from("payments")
-      .select("contrato_id, monto")
+      .select("contrato_id, monto, moneda, tipo_cambio")
       .eq("periodo_mes", currentMonth)
       .eq("periodo_anio", currentYear)
       .in("contrato_id", contractIds);
 
     const paidSumMap = new Map<string, number>();
-    for (const p of (periodPayments as { contrato_id: string; monto: number }[]) ?? []) {
-      paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + Number(p.monto));
+    for (const p of (periodPayments as { contrato_id: string; monto: number; moneda: string; tipo_cambio: number | null }[]) ?? []) {
+      const contract = contracts.find((c) => c.id === p.contrato_id);
+      if (contract) {
+        const converted = toContractCurrency(p.monto, p.moneda ?? "MXN", contract.moneda ?? "MXN", p.tipo_cambio);
+        paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + converted);
+      }
     }
 
-    return contracts.reduce((sum, c) => {
-      const remaining = Math.max(0, Number(c.precio_mensual) - (paidSumMap.get(c.id) ?? 0));
-      return sum + remaining;
-    }, 0);
+    return contracts.reduce(
+      (acc, c) => {
+        const remaining = Math.max(0, Number(c.precio_mensual) - (paidSumMap.get(c.id) ?? 0));
+        if ((c.moneda ?? "MXN") === "USD") acc.usd += remaining;
+        else acc.mxn += remaining;
+        return acc;
+      },
+      { mxn: 0, usd: 0 },
+    );
   } catch {
-    return 0;
+    return { mxn: 0, usd: 0 };
   }
 }
 
@@ -264,13 +307,12 @@ function paymentDueDateInMonth(
   return `${year}-${m}-${d}`;
 }
 
-/** Contrato activo sin pago registrado para el mes en curso (renta en MXN). */
 export type PendingDebtRow = {
   contractId: string;
   tenantName: string;
   propertyName: string;
-  amountMxn: number;
-  /** Fecha en que corresponde el pago del mes (según `dia_pago` del contrato), YYYY-MM-DD. */
+  amount: number;
+  moneda: string;
   paymentDueDate: string;
 };
 
@@ -285,7 +327,7 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
 
     const { data: rows, error } = await client.database
       .from("contracts")
-      .select("id, precio_mensual, dia_pago, properties(nombre), tenants(nombre)")
+      .select("id, precio_mensual, moneda, dia_pago, properties(nombre), tenants(nombre)")
       .eq("activo", true);
 
     if (error || !rows?.length) return [];
@@ -293,6 +335,7 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
     const raw = rows as unknown as {
       id: string;
       precio_mensual: number;
+      moneda: string;
       dia_pago: number;
       properties: { nombre: string } | { nombre: string }[] | null;
       tenants: { nombre: string } | { nombre: string }[] | null;
@@ -301,6 +344,7 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
     const contracts = raw.map((c) => ({
       id: c.id,
       precio_mensual: c.precio_mensual,
+      moneda: c.moneda ?? "MXN",
       dia_pago: Number(c.dia_pago) || 1,
       properties: Array.isArray(c.properties)
         ? (c.properties[0] ?? null)
@@ -312,14 +356,18 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
 
     const { data: paidRows } = await client.database
       .from("payments")
-      .select("contrato_id, monto")
+      .select("contrato_id, monto, moneda, tipo_cambio")
       .eq("periodo_mes", currentMonth)
       .eq("periodo_anio", currentYear)
       .in("contrato_id", contractIds);
 
     const paidSumMap = new Map<string, number>();
-    for (const p of (paidRows as { contrato_id: string; monto: number }[]) ?? []) {
-      paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + Number(p.monto));
+    for (const p of (paidRows as { contrato_id: string; monto: number; moneda: string; tipo_cambio: number | null }[]) ?? []) {
+      const contract = contracts.find((c) => c.id === p.contrato_id);
+      if (contract) {
+        const converted = toContractCurrency(p.monto, p.moneda ?? "MXN", contract.moneda, p.tipo_cambio);
+        paidSumMap.set(p.contrato_id, (paidSumMap.get(p.contrato_id) ?? 0) + converted);
+      }
     }
 
     return contracts
@@ -328,7 +376,8 @@ export async function getPendingDebtsByTenantForCurrentMonth(): Promise<
         contractId: c.id,
         tenantName: c.tenants?.nombre ?? "—",
         propertyName: c.properties?.nombre ?? "—",
-        amountMxn: Math.max(0, Number(c.precio_mensual) - (paidSumMap.get(c.id) ?? 0)),
+        amount: Math.max(0, Number(c.precio_mensual) - (paidSumMap.get(c.id) ?? 0)),
+        moneda: c.moneda,
         paymentDueDate: paymentDueDateInMonth(
           currentYear,
           currentMonth,
@@ -418,7 +467,13 @@ export async function getPaymentHistoryByContrato(
     while (year < endYear || (year === endYear && month <= endMonth)) {
       const key = `${year}-${month}`;
       const pagos = paymentsMap.get(key) ?? [];
-      const totalPagado = pagos.reduce((s, p) => s + Number(p.monto), 0);
+      const contractMoneda = contrato.moneda ?? "MXN";
+      const totalPagado = pagos.reduce(
+        (s, p) =>
+          s +
+          toContractCurrency(p.monto, p.moneda ?? "MXN", contractMoneda, p.tipo_cambio),
+        0,
+      );
       const saldoPendiente = Math.max(
         0,
         Number(contrato.precio_mensual) - totalPagado,

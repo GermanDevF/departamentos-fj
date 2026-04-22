@@ -16,6 +16,7 @@ bun create-admin                 # Interactive script to create the first admin 
 bun db:fix-user-profiles-rls     # Fix RLS recursion on user_profiles
 bun db:shared-business-rls       # Apply shared business data RLS policies
 bun db:add-payments-moneda       # Add currency column to payments table
+bun db:add-contracts-moneda      # Add currency column to contracts table
 ```
 
 No test suite is configured.

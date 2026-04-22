@@ -22,12 +22,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/components/auth/auth-provider";
 import { formatPaymentAmount } from "@/lib/payments/format-currency";
 import type { ContractRow } from "@/lib/contracts/actions";
 import type { PaymentRow } from "@/lib/payments/actions";
 import { paymentSchema, type PaymentFormValues } from "@/lib/validations";
-import type { CreatePaymentInput } from "@/types";
-import { METODOS_PAGO } from "@/types";
+import type { CreatePaymentInput, PaymentMoneda } from "@/types";
+import { METODOS_PAGO, PAYMENT_MONEDAS } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { IconLoader2 } from "@tabler/icons-react";
 import { useEffect } from "react";
@@ -62,6 +63,7 @@ interface PaymentFormProps {
     periodo_mes?: number;
     periodo_anio?: number;
     monto?: number;
+    moneda?: PaymentMoneda;
   };
   lockedFields?: { contrato?: boolean; period?: boolean };
   remainingBalance?: number;
@@ -102,6 +104,7 @@ export function PaymentForm({
   remainingBalance,
   submitLabel,
 }: PaymentFormProps) {
+  const { user } = useAuth();
   const now = new Date();
   const activeContracts = contracts.filter((c) => c.activo);
 
@@ -113,6 +116,8 @@ export function PaymentForm({
       fecha_pago: payment?.fecha_pago ?? now.toISOString().split("T")[0],
       periodo_mes: payment?.periodo_mes ?? prefilledValues?.periodo_mes ?? now.getMonth() + 1,
       periodo_anio: payment?.periodo_anio ?? prefilledValues?.periodo_anio ?? now.getFullYear(),
+      moneda: payment?.moneda ?? prefilledValues?.moneda ?? "MXN",
+      tipo_cambio: payment?.tipo_cambio ?? null,
       metodo_pago: payment?.metodo_pago ?? "efectivo",
       notas: payment?.notas ?? "",
     },
@@ -121,32 +126,47 @@ export function PaymentForm({
 
   const { isSubmitting, errors } = form.formState;
   const contratoId = useWatch({ control: form.control, name: "contrato_id" });
+  const moneda = useWatch({ control: form.control, name: "moneda" });
 
+  const selectedContract = activeContracts.find((c) => c.id === contratoId);
+  const contractMoneda = selectedContract?.moneda ?? "MXN";
+  const needsTipoCambio = !!contratoId && moneda !== contractMoneda;
 
   useEffect(() => {
     if (contratoId && !payment && !prefilledValues?.monto) {
       const selected = activeContracts.find((c) => c.id === contratoId);
       if (selected) {
         form.setValue("monto", selected.precio_mensual);
+        form.setValue("moneda", selected.moneda ?? "MXN");
       }
     }
   }, [contratoId, activeContracts, payment, prefilledValues?.monto, form]);
 
+  useEffect(() => {
+    if (!needsTipoCambio) {
+      form.setValue("tipo_cambio", null);
+    }
+  }, [needsTipoCambio, form]);
+
+  useEffect(() => {
+    if (needsTipoCambio && !payment && !form.getValues("tipo_cambio") && user?.defaultTipoCambio) {
+      form.setValue("tipo_cambio", user.defaultTipoCambio);
+    }
+  }, [needsTipoCambio, user?.defaultTipoCambio, payment, form]);
+
   function contractLabel(c: ContractRow) {
     const prop = c.properties?.nombre ?? "Propiedad";
     const tenant = c.tenants?.nombre ?? "Inquilino";
-    const price = new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-    }).format(c.precio_mensual);
+    const price = formatPaymentAmount(c.precio_mensual, c.moneda ?? "MXN");
     return `${prop} — ${tenant} (${price}/mes)`;
   }
 
   async function handleSubmit(values: PaymentFormValues) {
-    console.log(values);
     const data: CreatePaymentInput = {
       contrato_id: values.contrato_id,
       monto: values.monto,
+      moneda: values.moneda as PaymentMoneda,
+      tipo_cambio: values.tipo_cambio ?? null,
       fecha_pago: values.fecha_pago,
       periodo_mes: values.periodo_mes,
       periodo_anio: values.periodo_anio,
@@ -198,12 +218,12 @@ export function PaymentForm({
           )}
         />
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <FormField
             control={form.control}
             name="monto"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="sm:col-span-1">
                 <FormLabel>Monto</FormLabel>
                 <div className="flex overflow-hidden rounded-lg border border-input bg-transparent transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 dark:bg-input/30">
                   <FormControl>
@@ -220,9 +240,38 @@ export function PaymentForm({
                 </div>
                 {remainingBalance != null && remainingBalance > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Saldo restante: {formatPaymentAmount(remainingBalance, "MXN")}
+                    Saldo restante: {formatPaymentAmount(remainingBalance, moneda ?? "MXN")}
                   </p>
                 )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="moneda"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor={field.name}>Moneda</FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={isSubmitting}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {PAYMENT_MONEDAS.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -240,6 +289,37 @@ export function PaymentForm({
             )}
           />
         </div>
+
+        {needsTipoCambio && (
+          <FormField
+            control={form.control}
+            name="tipo_cambio"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor={field.name}>
+                  Tipo de cambio ({moneda} → {contractMoneda})
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    id={field.name}
+                    type="number"
+                    step="0.01"
+                    min={0.01}
+                    placeholder={`¿Cuántos ${contractMoneda} por 1 ${moneda}?`}
+                    disabled={isSubmitting}
+                    value={field.value ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      field.onChange(val === "" ? null : Number(val));
+                    }}
+                    onBlur={field.onBlur}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField

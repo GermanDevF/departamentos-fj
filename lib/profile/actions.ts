@@ -41,6 +41,9 @@ export async function saveMyProfileSettings(
   const name = String(formData.get("name") ?? "").trim();
   const removeAvatar = formData.get("removeAvatar") === "true";
   const avatar = formData.get("avatar");
+  const rawTc = formData.get("default_tipo_cambio");
+  const defaultTipoCambio =
+    rawTc && Number(rawTc) > 0 ? Number(rawTc) : null;
 
   if (!name) {
     return { success: false, error: "El nombre es obligatorio." };
@@ -101,7 +104,7 @@ export async function saveMyProfileSettings(
     newObjectKey = uploaded.key;
   }
 
-  const payload: Record<string, unknown> = { name };
+  const payload: Record<string, unknown> = { name, default_tipo_cambio: defaultTipoCambio };
   if (avatarUrl !== undefined) {
     payload.avatar_url = avatarUrl;
     if (avatarUrl === null) {

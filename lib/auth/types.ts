@@ -15,6 +15,7 @@ export interface AuthUser {
   createdAt: string;
   role: UserRole;
   isActive: boolean;
+  defaultTipoCambio: number | null;
 }
 
 export interface AuthResult {

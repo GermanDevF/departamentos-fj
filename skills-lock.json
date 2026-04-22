@@ -24,7 +24,7 @@
     "insforge-integrations": {
       "source": "insforge/agent-skills",
       "sourceType": "github",
-      "computedHash": "66c1bcb0b3f0ee31e97b34e52cac5481b1b7bce58f1235990aa3776138e2c9c0"
+      "computedHash": "5a1d0bd2a27eb5dc60388d80d188ade0d04c044448bac3cfefa4bcd489ae3e34"
     }
   }
 }

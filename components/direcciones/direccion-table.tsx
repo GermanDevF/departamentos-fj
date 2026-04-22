@@ -10,28 +10,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconEdit, IconTrash } from "@tabler/icons-react";
-import type { Property } from "@/types";
+import type { Direccion } from "@/types";
 
-interface PropertyTableProps {
-  properties: Property[];
+interface DireccionTableProps {
+  direcciones: Direccion[];
   loading: boolean;
-  compact?: boolean;
-  onEdit?: (property: Property) => void;
+  onEdit?: (direccion: Direccion) => void;
   onDelete?: (id: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-export function PropertyTable({
-  properties,
+function formatDireccionCalle(d: Direccion): string {
+  return `${d.calle} ${d.numero_exterior}${d.numero_interior ? ` Int. ${d.numero_interior}` : ""}`;
+}
+
+export function DireccionTable({
+  direcciones,
   loading,
-  compact,
   onEdit,
   onDelete,
-}: PropertyTableProps) {
-  const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
+}: DireccionTableProps) {
+  const [deleteTarget, setDeleteTarget] = useState<Direccion | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
@@ -54,12 +55,12 @@ export function PropertyTable({
     );
   }
 
-  if (properties.length === 0) {
+  if (direcciones.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
-        <p className="text-muted-foreground">No hay propiedades registradas.</p>
+        <p className="text-muted-foreground">No hay direcciones registradas.</p>
         <p className="text-sm text-muted-foreground">
-          Crea tu primera propiedad para comenzar.
+          Crea tu primera dirección para agrupar propiedades.
         </p>
       </div>
     );
@@ -67,14 +68,14 @@ export function PropertyTable({
 
   return (
     <>
-      <div className={compact ? "" : "rounded-lg border"}>
+      <div className="rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
-              {!compact && <TableHead>Dirección</TableHead>}
-              <TableHead className="hidden md:table-cell">Descripción</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>Calle y número</TableHead>
+              <TableHead className="hidden md:table-cell">Colonia</TableHead>
+              <TableHead className="hidden lg:table-cell">Ciudad / Estado</TableHead>
               <TableHead className="hidden sm:table-cell">Fecha</TableHead>
               {hasActions && (
                 <TableHead className="w-[100px] text-right">Acciones</TableHead>
@@ -82,20 +83,16 @@ export function PropertyTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {properties.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.nombre}</TableCell>
-                {!compact && <TableCell>{p.direccion}</TableCell>}
-                <TableCell className="hidden max-w-[200px] truncate md:table-cell">
-                  {p.descripcion ?? "—"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={p.disponible ? "default" : "secondary"}>
-                    {p.disponible ? "Disponible" : "No disponible"}
-                  </Badge>
+            {direcciones.map((d) => (
+              <TableRow key={d.id}>
+                <TableCell className="font-medium">{d.nombre}</TableCell>
+                <TableCell>{formatDireccionCalle(d)}</TableCell>
+                <TableCell className="hidden md:table-cell">{d.colonia}</TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {d.ciudad}, {d.estado}
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  {new Date(p.created_at).toLocaleDateString("es-MX")}
+                  {new Date(d.created_at).toLocaleDateString("es-MX")}
                 </TableCell>
                 {hasActions && (
                   <TableCell className="text-right">
@@ -104,7 +101,7 @@ export function PropertyTable({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => onEdit(p)}
+                          onClick={() => onEdit(d)}
                         >
                           <IconEdit className="size-4" />
                         </Button>
@@ -113,7 +110,7 @@ export function PropertyTable({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeleteTarget(p)}
+                          onClick={() => setDeleteTarget(d)}
                         >
                           <IconTrash className="size-4" />
                         </Button>
@@ -130,8 +127,8 @@ export function PropertyTable({
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="Eliminar propiedad"
-        description={`¿Estás seguro de eliminar "${deleteTarget?.nombre}"? Esta acción no se puede deshacer y eliminará los contratos asociados.`}
+        title="Eliminar dirección"
+        description={`¿Estás seguro de eliminar "${deleteTarget?.nombre}"? Las propiedades asociadas no se eliminarán, pero perderán la referencia a esta dirección.`}
         onConfirm={handleDelete}
         loading={deleting}
       />

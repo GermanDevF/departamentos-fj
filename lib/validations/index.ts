@@ -1,10 +1,28 @@
 import { z } from "zod";
 
+export const direccionSchema = z.object({
+  nombre: z.string().min(1, "El nombre es requerido").max(150, "Máximo 150 caracteres"),
+  calle: z.string().min(1, "La calle es requerida").max(200, "Máximo 200 caracteres"),
+  numero_exterior: z.string().min(1, "El número exterior es requerido").max(20, "Máximo 20 caracteres"),
+  numero_interior: z.string().max(20, "Máximo 20 caracteres").optional().or(z.literal("")),
+  colonia: z.string().min(1, "La colonia es requerida").max(100, "Máximo 100 caracteres"),
+  ciudad: z.string().min(1, "La ciudad es requerida").max(100, "Máximo 100 caracteres"),
+  estado: z.string().min(1, "El estado es requerido").max(100, "Máximo 100 caracteres"),
+  cp: z.string().max(10, "Máximo 10 caracteres").optional().or(z.literal("")),
+  notas: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
+});
+
+export type DireccionFormValues = z.infer<typeof direccionSchema>;
+
 export const propertySchema = z.object({
   nombre: z.string().min(1, "El nombre es requerido").max(100, "Máximo 100 caracteres"),
   direccion: z.string().min(1, "La dirección es requerida").max(200, "Máximo 200 caracteres"),
+  direccion_id: z.string().uuid("ID de dirección inválido").nullable().optional(),
   descripcion: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
   disponible: z.boolean().default(true),
+  contrato_agua: z.string().max(100, "Máximo 100 caracteres").optional().or(z.literal("")),
+  contrato_luz: z.string().max(100, "Máximo 100 caracteres").optional().or(z.literal("")),
+  contrato_internet: z.string().max(100, "Máximo 100 caracteres").optional().or(z.literal("")),
 });
 
 export type PropertyFormValues = z.infer<typeof propertySchema>;
@@ -32,6 +50,7 @@ export const contractSchema = z
       .int("Debe ser un número entero")
       .nullable(),
     precio_mensual: z.coerce.number().positive("Debe ser mayor a $0"),
+    moneda: z.enum(["MXN", "USD"]).default("MXN"),
     dia_pago: z.coerce.number().int().min(1, "Mínimo 1").max(31, "Máximo 31"),
   })
   .refine(
@@ -46,6 +65,8 @@ export type ContractFormValues = z.infer<typeof contractSchema>;
 export const paymentSchema = z.object({
   contrato_id: z.string().min(1, "Selecciona un contrato"),
   monto: z.coerce.number().positive("Debe ser mayor a 0"),
+  moneda: z.enum(["MXN", "USD"]).default("MXN"),
+  tipo_cambio: z.coerce.number().positive("Debe ser mayor a 0").nullable().optional(),
   fecha_pago: z
     .string()
     .min(1, "La fecha de pago es requerida")
@@ -95,6 +116,11 @@ export const profileSettingsSchema = z.object({
     .string()
     .min(1, "El nombre es requerido")
     .max(100, "Máximo 100 caracteres"),
+  default_tipo_cambio: z.coerce
+    .number()
+    .positive("Debe ser mayor a 0")
+    .nullable()
+    .optional(),
 });
 
 export type ProfileSettingsFormValues = z.infer<typeof profileSettingsSchema>;

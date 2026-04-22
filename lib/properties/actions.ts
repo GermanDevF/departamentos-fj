@@ -56,6 +56,7 @@ export async function createProperty(
           user_id: userId,
           nombre: input.nombre.trim(),
           direccion: input.direccion.trim(),
+          direccion_id: input.direccion_id ?? null,
           descripcion: input.descripcion?.trim() || null,
           disponible: input.disponible ?? true,
         },
@@ -77,6 +78,8 @@ export async function updateProperty(
   const updates: Record<string, unknown> = {};
   if (input.nombre !== undefined) updates.nombre = input.nombre.trim();
   if (input.direccion !== undefined) updates.direccion = input.direccion.trim();
+  if (input.direccion_id !== undefined)
+    updates.direccion_id = input.direccion_id || null;
   if (input.descripcion !== undefined)
     updates.descripcion = input.descripcion?.trim() || null;
   if (input.disponible !== undefined) updates.disponible = input.disponible;
