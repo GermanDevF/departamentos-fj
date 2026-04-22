@@ -74,6 +74,7 @@ export async function createContract(
           tipo_duracion: input.tipo_duracion,
           duracion_cantidad: input.tipo_duracion === "indefinido" ? null : input.duracion_cantidad,
           precio_mensual: input.precio_mensual,
+          moneda: input.moneda ?? "MXN",
           dia_pago: input.dia_pago,
           activo: true,
         },
@@ -118,6 +119,7 @@ export async function updateContract(
       return { success: false, error: "El día de pago debe estar entre 1 y 31." };
     updates.dia_pago = input.dia_pago;
   }
+  if (input.moneda !== undefined) updates.moneda = input.moneda;
   if (input.activo !== undefined) updates.activo = input.activo;
 
   if (Object.keys(updates).length === 0)

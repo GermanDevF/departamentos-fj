@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun --env-file=.env next dev",
-    "build": "bun --env-file=.env next build",
-    "start": "bun --env-file=.env next start",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "dev:qa": "bun --env-file=.local.env next dev",
     "build:qa": "bun --env-file=.local.env next build",
     "start:qa": "bun --env-file=.local.env next start",
@@ -13,7 +13,9 @@
     "create-admin": "bun --env-file=.local.env scripts/create-admin.mjs",
     "db:fix-user-profiles-rls": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/fix-user-profiles-rls-recursion.sql",
     "db:shared-business-rls": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/shared-business-data-rls.sql",
-    "db:add-payments-moneda": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/add-payments-moneda.sql"
+    "db:add-payments-moneda": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/add-payments-moneda.sql",
+    "db:add-contracts-moneda": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/add-contracts-moneda.sql",
+    "db:create-direcciones": "bun --env-file=.local.env scripts/run-insforge-sql.mjs scripts/create-direcciones.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "3",

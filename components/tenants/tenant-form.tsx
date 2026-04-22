@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
 import { IconLoader2 } from "@tabler/icons-react";
 import { tenantSchema, type TenantFormValues } from "@/lib/validations";
 import type { Tenant, CreateTenantInput } from "@/types";
+import { TenantIneUpload } from "./tenant-ine-upload";
 
 interface TenantFormProps {
   tenant?: Tenant;
@@ -24,6 +26,9 @@ interface TenantFormProps {
 }
 
 export function TenantForm({ tenant, onSubmit, onCancel }: TenantFormProps) {
+  const [ineFrontalUrl, setIneFrontalUrl] = useState<string | null>(tenant?.ine_frontal_url ?? null);
+  const [ineTraseraUrl, setIneTraseraUrl] = useState<string | null>(tenant?.ine_trasera_url ?? null);
+
   const form = useForm<TenantFormValues>({
     resolver: zodResolver(tenantSchema),
     defaultValues: {
@@ -95,7 +100,7 @@ export function TenantForm({ tenant, onSubmit, onCancel }: TenantFormProps) {
           )}
         />
 
-        <FormField
+        {/* <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
@@ -112,7 +117,24 @@ export function TenantForm({ tenant, onSubmit, onCancel }: TenantFormProps) {
               <FormMessage />
             </FormItem>
           )}
-        />
+        /> */}
+
+        {tenant ? (
+          <TenantIneUpload
+            tenantId={tenant.id}
+            frontalUrl={ineFrontalUrl}
+            traseraUrl={ineTraseraUrl}
+            onUpdate={(side, url) => {
+              if (side === "frontal") setIneFrontalUrl(url);
+              else setIneTraseraUrl(url);
+            }}
+            disabled={isSubmitting}
+          />
+        ) : (
+          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+            Podrás subir la INE después de crear el inquilino.
+          </p>
+        )}
 
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button

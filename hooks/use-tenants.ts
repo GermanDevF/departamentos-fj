@@ -7,6 +7,10 @@ import {
   updateTenant,
   deleteTenant,
 } from "@/lib/tenants/actions";
+import {
+  uploadTenantIne,
+  removeTenantIne,
+} from "@/lib/tenants/ine-actions";
 import type { Tenant, CreateTenantInput, UpdateTenantInput } from "@/types";
 
 export function useTenants() {
@@ -55,5 +59,23 @@ export function useTenants() {
     });
   }, [refresh]);
 
-  return { tenants, loading, create, update, remove, refresh };
+  const uploadIne = useCallback(
+    async (tenantId: string, side: "frontal" | "trasera", formData: FormData) => {
+      const result = await uploadTenantIne(tenantId, side, formData);
+      if (result.success) await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  const removeIne = useCallback(
+    async (tenantId: string, side: "frontal" | "trasera") => {
+      const result = await removeTenantIne(tenantId, side);
+      if (result.success) await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  return { tenants, loading, create, update, remove, uploadIne, removeIne, refresh };
 }

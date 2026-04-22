@@ -7,6 +7,10 @@ import {
   updateProperty,
   deleteProperty,
 } from "@/lib/properties/actions";
+import {
+  uploadPropertyPhoto,
+  deletePropertyPhoto,
+} from "@/lib/properties/photo-actions";
 import type {
   Property,
   CreatePropertyInput,
@@ -59,5 +63,23 @@ export function useProperties() {
     });
   }, [refresh]);
 
-  return { properties, loading, create, update, remove, refresh };
+  const uploadPhoto = useCallback(
+    async (propertyId: string, formData: FormData) => {
+      const result = await uploadPropertyPhoto(propertyId, formData);
+      if (result.success) await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  const deletePhoto = useCallback(
+    async (propertyId: string, storageKey: string) => {
+      const result = await deletePropertyPhoto(propertyId, storageKey);
+      if (result.success) await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  return { properties, loading, create, update, remove, uploadPhoto, deletePhoto, refresh };
 }

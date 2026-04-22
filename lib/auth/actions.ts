@@ -100,6 +100,10 @@ async function buildAuthUser(
     createdAt: raw.createdAt as string,
     role: profileStatus.role as UserRole,
     isActive: profileStatus.isActive,
+    defaultTipoCambio:
+      typeof profile.default_tipo_cambio === "number"
+        ? profile.default_tipo_cambio
+        : null,
   };
 }
 

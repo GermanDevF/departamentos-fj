@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconEdit, IconTrash, IconPlayerStop, IconHistory } from "@tabler/icons-react";
+import { formatPaymentAmount } from "@/lib/payments/format-currency";
 import type { ContractRow } from "@/lib/contracts/actions";
 
 interface ContractTableProps {
@@ -55,11 +56,8 @@ export function ContractTable({
 
   const hasActions = !!onEdit || !!onDeactivate || !!onDelete || !!onViewHistory;
 
-  function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-    }).format(amount);
+  function formatCurrency(amount: number, moneda?: string) {
+    return formatPaymentAmount(amount, moneda ?? "MXN");
   }
 
   if (loading) {
@@ -116,7 +114,7 @@ export function ContractTable({
                     ? "Indefinido"
                     : `${c.duracion_cantidad} ${c.tipo_duracion}`}
                 </TableCell>
-                <TableCell>{formatCurrency(c.precio_mensual)}</TableCell>
+                <TableCell>{formatCurrency(c.precio_mensual, c.moneda)}</TableCell>
                 <TableCell className="hidden sm:table-cell">
                   Día {c.dia_pago}
                 </TableCell>

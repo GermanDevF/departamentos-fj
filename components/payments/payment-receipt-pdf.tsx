@@ -296,7 +296,7 @@ export function PaymentReceiptPDF({ payment }: PaymentReceiptPDFProps) {
           <View style={styles.row}>
             <Text style={styles.label}>Renta mensual:</Text>
             <Text style={styles.value}>
-              {formatPaymentAmount(contract?.precio_mensual ?? 0, "MXN")}
+              {formatPaymentAmount(contract?.precio_mensual ?? 0, contract?.moneda ?? payment.moneda ?? "MXN")}
             </Text>
           </View>
           <View style={styles.row}>

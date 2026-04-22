@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PdfViewerDialog } from "@/components/ui/pdf-viewer-dialog";
 import { IconEdit, IconTrash, IconFileDownload, IconLoader2 } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { METODOS_PAGO } from "@/types";
 import { formatPaymentAmount } from "@/lib/payments/format-currency";
 import type { PaymentRow } from "@/lib/payments/actions";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 const MESES_CORTO = [
   "", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -37,22 +39,37 @@ export function PaymentTable({
   onEdit,
   onDelete,
 }: PaymentTableProps) {
-  const [deleteTarget, setDeleteTarget] = useState<PaymentRow | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const [ deleteTarget, setDeleteTarget ] = useState<PaymentRow | null>(null);
+  const [ deleting, setDeleting ] = useState(false);
+  const [ downloading, setDownloading ] = useState<string | null>(null);
+  const [ viewerOpen, setViewerOpen ] = useState(false);
+  const [ viewerBlobUrl, setViewerBlobUrl ] = useState<string | null>(null);
+  const [ viewerFilename, setViewerFilename ] = useState("");
 
   async function handleDownload(payment: PaymentRow) {
     setDownloading(payment.id);
     try {
-      const { downloadReceiptPDF } = await import(
+      const { generateReceiptBlob } = await import(
         "@/lib/payments/generate-receipt-pdf"
       );
-      await downloadReceiptPDF(payment);
+      const { blob, filename } = await generateReceiptBlob(payment);
+      const url = URL.createObjectURL(blob);
+      setViewerBlobUrl(url);
+      setViewerFilename(filename);
+      setViewerOpen(true);
     } catch {
       toast.error("Error al generar el recibo.");
     } finally {
       setDownloading(null);
     }
+  }
+
+  function handleViewerClose(open: boolean) {
+    if (!open && viewerBlobUrl) {
+      URL.revokeObjectURL(viewerBlobUrl);
+      setViewerBlobUrl(null);
+    }
+    setViewerOpen(open);
   }
 
   async function handleDelete() {
@@ -116,7 +133,7 @@ export function PaymentTable({
                   {formatPaymentAmount(p.monto, p.moneda)}
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  {MESES_CORTO[p.periodo_mes]} {p.periodo_anio}
+                  {MESES_CORTO[ p.periodo_mes ]} {p.periodo_anio}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
                   {new Date(p.fecha_pago).toLocaleDateString("es-MX")}
@@ -126,36 +143,57 @@ export function PaymentTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Descargar recibo PDF"
-                      disabled={downloading === p.id}
-                      onClick={() => handleDownload(p)}
-                    >
-                      {downloading === p.id ? (
-                        <IconLoader2 className="size-4 animate-spin" />
-                      ) : (
-                        <IconFileDownload className="size-4" />
-                      )}
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Ver recibo PDF"
+                          disabled={downloading === p.id}
+                          onClick={() => handleDownload(p)}
+                        >
+                          {downloading === p.id ? (
+                            <IconLoader2 className="size-4 animate-spin" />
+                          ) : (
+                            <IconFileDownload className="size-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Ver recibo PDF
+                      </TooltipContent>
+                    </Tooltip>
                     {onEdit && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onEdit(p)}
-                      >
-                        <IconEdit className="size-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEdit(p)}
+                          >
+                            <IconEdit className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Editar pago
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                     {onDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteTarget(p)}
-                      >
-                        <IconTrash className="size-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteTarget(p)}
+                          >
+                            <IconTrash className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Eliminar pago
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
                 </TableCell>
@@ -172,6 +210,13 @@ export function PaymentTable({
         description="¿Estás seguro de eliminar este pago? Esta acción no se puede deshacer."
         onConfirm={handleDelete}
         loading={deleting}
+      />
+
+      <PdfViewerDialog
+        open={viewerOpen}
+        onOpenChange={handleViewerClose}
+        blobUrl={viewerBlobUrl}
+        filename={viewerFilename}
       />
     </>
   );
